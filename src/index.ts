@@ -3,6 +3,7 @@ import dotenv from "dotenv";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import connectDB from "./config/db";
+import authRoutes from "./routes/auth.routes";
 
 dotenv.config();
 
@@ -22,6 +23,9 @@ app.use(
 // Middlewares
 app.use(express.json());
 app.use(cookieParser());
+
+// Routes
+app.use('/api/v1/auth', authRoutes)
 
 // Test route
 app.get("/", (req, res) => {
