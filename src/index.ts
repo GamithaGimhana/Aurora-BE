@@ -8,6 +8,7 @@ import noteRoutes from "./routes/note.routes";
 import flashcardRoutes from "./routes/flashcard.routes";
 import questionRoutes from "./routes/question.routes";
 import quizRoutes from "./routes/quiz.routes";
+import quizRoomRoutes from "./routes/quizRoom.routes";
 
 dotenv.config();
 
@@ -34,6 +35,7 @@ app.use('/api/v1/notes', noteRoutes);
 app.use('/api/v1/flashcards', flashcardRoutes);
 app.use('/api/v1/questions', questionRoutes);
 app.use('/api/v1/quizzes', quizRoutes);
+app.use('/api/v1/rooms', quizRoomRoutes);
 
 // Test route
 app.get("/", (req, res) => {
