@@ -7,6 +7,7 @@ import authRoutes from "./routes/auth.routes";
 import noteRoutes from "./routes/note.routes";
 import flashcardRoutes from "./routes/flashcard.routes";
 import questionRoutes from "./routes/question.routes";
+import quizRoutes from "./routes/quiz.routes";
 
 dotenv.config();
 
@@ -32,6 +33,7 @@ app.use('/api/v1/auth', authRoutes)
 app.use('/api/v1/notes', noteRoutes);
 app.use('/api/v1/flashcards', flashcardRoutes);
 app.use('/api/v1/questions', questionRoutes);
+app.use('/api/v1/quizzes', quizRoutes);
 
 // Test route
 app.get("/", (req, res) => {
