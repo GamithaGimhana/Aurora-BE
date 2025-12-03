@@ -1,19 +1,55 @@
 import { Router } from "express";
 import { authenticate } from "../middlewares/auth.middleware";
+import { requireRole } from "../middlewares/role.middleware";
+import { Role } from "../models/User";
+
 import {
   createRoom,
-  startRoom,
-  joinRoom,
+  getAllRooms,
   getMyRooms,
-  deleteRoom
-} from "../controllers/quizroom.controller";
+  getRoomByCode,
+  updateRoom,
+  deleteRoom,
+} from "../controllers/quizRoom.controller";
 
 const router = Router();
 
-router.post("/", authenticate, createRoom);
-router.post("/start/:id", authenticate, startRoom);
-router.get("/join/:code", authenticate, joinRoom);
-router.get("/my", authenticate, getMyRooms);
-router.delete("/:id", authenticate, deleteRoom);
+// /api/v1/rooms/create (LECTURER, ADMIN)
+router.post(
+  "/create",
+  authenticate,
+  requireRole([Role.LECTURER, Role.ADMIN]),
+  createRoom
+);
+
+// /api/v1/rooms
+router.get("/", getAllRooms);
+
+// /api/v1/rooms/me
+router.get(
+  "/me",
+  authenticate,
+  requireRole([Role.LECTURER, Role.ADMIN]),
+  getMyRooms
+);
+
+// /api/v1/rooms/code/:roomCode
+router.get("/code/:roomCode", getRoomByCode);
+
+// /api/v1/rooms/update/:id
+router.put(
+  "/update/:id",
+  authenticate,
+  requireRole([Role.LECTURER, Role.ADMIN]),
+  updateRoom
+);
+
+// /api/v1/rooms/delete/:id
+router.delete(
+  "/delete/:id",
+  authenticate,
+  requireRole([Role.LECTURER, Role.ADMIN]),
+  deleteRoom
+);
 
 export default router;

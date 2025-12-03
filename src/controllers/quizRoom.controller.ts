@@ -1,168 +1,166 @@
 import { Request, Response } from "express";
 import { AuthRequest } from "../middlewares/auth.middleware";
-import Quiz from "../models/Quiz";
 import QuizRoom from "../models/QuizRoom";
-import { Types } from "mongoose";
+import Quiz from "../models/Quiz";
 
-// Utility to generate a 6-digit code
-const generateRoomCode = () =>
-  Math.floor(100000 + Math.random() * 900000).toString();
+// Helper to generate random 6-digit room code
+const generateRoomCode = () => Math.random().toString(36).substring(2, 8).toUpperCase();
 
-// POST /api/rooms
+// /api/v1/rooms/create
 export const createRoom = async (req: AuthRequest, res: Response) => {
-  try {
-    if (!req.user || !req.user.role?.includes("LECTURER")) {
-      return res.status(403).json({ message: "Only lecturers can create rooms" });
-    }
-
-    const { quizId, durationMinutes, maxQuestions } = req.body;
-
-    if (!quizId || !durationMinutes || !maxQuestions) {
-      return res.status(400).json({ message: "Missing fields" });
-    }
-
-    // Check lecturer really owns the quiz
-    const quiz = await Quiz.findOne({
-      _id: quizId,
-      ownerId: req.user.sub
-    });
-
-    if (!quiz) {
-      return res.status(404).json({ message: "Quiz not found or not owned by you" });
-    }
-
-    const room = new QuizRoom({
-      lecturerId: new Types.ObjectId(req.user.sub),
-      quizId,
-      code: generateRoomCode(),
-      durationMinutes,
-      maxQuestions,
-      isActive: false
-    });
-
-    await room.save();
-
-    return res.status(201).json({
-      message: "Quiz room created",
-      data: room
-    });
-
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Failed to create quiz room" });
-  }
-};
-
-// POST /api/rooms/start/:id
-export const startRoom = async (req: AuthRequest, res: Response) => {
-  try {
-    if (!req.user || !req.user.role?.includes("LECTURER")) {
-      return res.status(403).json({ message: "Only lecturers can start rooms" });
-    }
-
-    const { id } = req.params;
-
-    const room = await QuizRoom.findById(id);
-    if (!room)
-      return res.status(404).json({ message: "Room not found" });
-
-    if (room.lecturerId.toString() !== req.user.sub)
-      return res.status(403).json({ message: "Not your room" });
-
-    room.isActive = true;
-    room.startTime = new Date();
-
-    await room.save();
-
-    return res.status(200).json({ message: "Room started", data: room });
-
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Failed to start quiz room" });
-  }
-};
-
-// GET /api/rooms/join/:code
-export const joinRoom = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user)
       return res.status(401).json({ message: "Unauthorized" });
 
-    const { code } = req.params;
+    const { quizId, timeLimit } = req.body;
 
-    const room = await QuizRoom.findOne({ code });
+    if (!quizId || !timeLimit)
+      return res.status(400).json({ message: "quizId and timeLimit are required" });
 
-    if (!room)
-      return res.status(404).json({ message: "Invalid room code" });
+    // Validate quiz exists
+    const quiz = await Quiz.findById(quizId);
+    if (!quiz)
+      return res.status(404).json({ message: "Quiz not found" });
 
-    if (!room.isActive)
-      return res.status(403).json({ message: "Room is not active yet" });
+    const roomCode = generateRoomCode();
 
-    // Time validation
-    if (room.startTime) {
-      const now = Date.now();
-      const start = room.startTime.getTime();
-      const end = start + room.durationMinutes * 60 * 1000;
-
-      if (now > end) {
-        return res.status(403).json({ message: "Room has expired" });
-      }
-    }
-
-    return res.status(200).json({
-      message: "Joined room successfully",
-      data: room
+    const newRoom = new QuizRoom({
+      roomCode,
+      quiz: quizId,
+      lecturer: req.user.sub,
+      timeLimit,
+      active: true,
     });
 
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Failed to join room" });
+    await newRoom.save();
+
+    res.status(201).json({
+      message: "Quiz room created successfully",
+      data: newRoom,
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to create quiz room" });
   }
 };
 
-// GET /api/rooms/my
-export const getMyRooms = async (req: AuthRequest, res: Response) => {
+// /api/v1/rooms?page=1&limit=10
+export const getAllRooms = async (req: Request, res: Response) => {
   try {
-    if (!req.user || !req.user.role?.includes("LECTURER")) {
-      return res.status(403).json({ message: "Only lecturers can view rooms" });
-    }
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const skip = (page - 1) * limit;
 
-    const rooms = await QuizRoom.find({ lecturerId: req.user.sub })
-      .sort({ createdAt: -1 });
+    const rooms = await QuizRoom.find()
+      .populate("quiz")
+      .populate("lecturer", "name email")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
 
-    return res.status(200).json({
-      message: "Rooms fetched successfully",
-      data: rooms
+    const total = await QuizRoom.countDocuments();
+
+    res.status(200).json({
+      message: "Quiz rooms fetched successfully",
+      data: rooms,
+      totalPages: Math.ceil(total / limit),
+      totalCount: total,
+      page,
     });
 
-  } catch (error) {
-    console.error(error);
+  } catch (err) {
     res.status(500).json({ message: "Failed to fetch rooms" });
   }
 };
 
-// DELETE /api/rooms/:id
-export const deleteRoom = async (req: AuthRequest, res: Response) => {
+// /api/v1/rooms/me
+export const getMyRooms = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user || !req.user.role?.includes("LECTURER")) {
-      return res.status(403).json({ message: "Only lecturers can delete rooms" });
-    }
+    if (!req.user)
+      return res.status(401).json({ message: "Unauthorized" });
 
-    const { id } = req.params;
+    const rooms = await QuizRoom.find({ lecturer: req.user.sub })
+      .populate("quiz")
+      .sort({ createdAt: -1 });
 
-    const room = await QuizRoom.findById(id);
+    res.status(200).json({
+      message: "Your quiz rooms fetched",
+      data: rooms,
+    });
+
+  } catch (err) {
+    res.status(500).json({ message: "Failed to fetch your rooms" });
+  }
+};
+
+// /api/v1/rooms/code/:roomCode
+export const getRoomByCode = async (req: Request, res: Response) => {
+  try {
+    const { roomCode } = req.params;
+
+    const room = await QuizRoom.findOne({ roomCode })
+      .populate("quiz")
+      .populate("lecturer", "name email");
+
     if (!room)
       return res.status(404).json({ message: "Room not found" });
 
-    if (room.lecturerId.toString() !== req.user.sub)
-      return res.status(403).json({ message: "Not your room" });
+    res.status(200).json({
+      message: "Room found",
+      data: room,
+    });
 
-    await room.deleteOne();
+  } catch (err) {
+    res.status(500).json({ message: "Failed to fetch room" });
+  }
+};
 
-    return res.status(200).json({ message: "Room deleted" });
+// /api/v1/rooms/update/:id
+export const updateRoom = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user)
+      return res.status(401).json({ message: "Unauthorized" });
 
-  } catch (error) {
-    console.error(error);
+    const updated = await QuizRoom.findOneAndUpdate(
+      { _id: req.params.id, lecturer: req.user.sub },
+      req.body,
+      { new: true }
+    );
+
+    if (!updated)
+      return res.status(404).json({ message: "Room not found or access denied" });
+
+    res.status(200).json({
+      message: "Room updated successfully",
+      data: updated,
+    });
+
+  } catch (err) {
+    res.status(500).json({ message: "Failed to update room" });
+  }
+};
+
+// /api/v1/rooms/delete/:id
+export const deleteRoom = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user)
+      return res.status(401).json({ message: "Unauthorized" });
+
+    const deleted = await QuizRoom.findOneAndDelete({
+      _id: req.params.id,
+      lecturer: req.user.sub,
+    });
+
+    if (!deleted)
+      return res.status(404).json({ message: "Room not found or access denied" });
+
+    res.status(200).json({
+      message: "Room deleted successfully",
+      data: deleted,
+    });
+
+  } catch (err) {
     res.status(500).json({ message: "Failed to delete room" });
   }
 };
