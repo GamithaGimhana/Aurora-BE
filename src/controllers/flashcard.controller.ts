@@ -1,157 +1,166 @@
 import { Request, Response } from "express";
 import { AuthRequest } from "../middlewares/auth.middleware";
-import Flashcard, { Difficulty } from "../models/Flashcard";
-import Note from "../models/Note";
-import { Types } from "mongoose";
+import Flashcard from "../models/Flashcard";
 
-// POST /api/flashcards
+// /api/v1/flashcards/create
 export const createFlashcard = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user) 
+    if (!req.user) {
       return res.status(401).json({ message: "Unauthorized" });
+    }
 
-    const { noteId, question, answer, difficulty } = req.body;
+    const { question, answer, topic } = req.body;
 
-    if (!noteId || !question || !answer)
-      return res.status(400).json({ message: "Missing fields" });
-
-    const noteExists = await Note.findOne({
-      _id: noteId,
-      ownerId: req.user.sub
-    });
-
-    if (!noteExists)
-      return res.status(404).json({ message: "Note not found or not yours" });
+    if (!question || !answer || !topic) {
+      return res.status(400).json({ message: "All fields are required" });
+    }
 
     const newFlashcard = new Flashcard({
-      ownerId: new Types.ObjectId(req.user.sub),
-      noteId,
       question,
       answer,
-      difficulty: difficulty || Difficulty.MEDIUM
+      topic,
+      user: req.user.sub,
     });
 
     await newFlashcard.save();
 
-    return res.status(201).json({
+    res.status(201).json({
       message: "Flashcard created successfully",
-      data: newFlashcard
+      data: newFlashcard,
     });
 
-  } catch (error) {
-    console.error(error);
+  } catch (err) {
+    console.error(err);
     res.status(500).json({ message: "Failed to create flashcard" });
   }
 };
 
-// GET /api/flashcards?noteId=xxxx&page=1&limit=10
-export const getFlashcards = async (req: AuthRequest, res: Response) => {
+// /api/v1/flashcards?page=1&limit=10
+export const getAllFlashcards = async (req: Request, res: Response) => {
   try {
-    if (!req.user)
-      return res.status(401).json({ message: "Unauthorized" });
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const skip = (page - 1) * limit;
 
-    const noteId = req.query.noteId as string;
+    const flashcards = await Flashcard.find()
+      .populate("user", "name email")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    const total = await Flashcard.countDocuments();
+
+    res.status(200).json({
+      message: "Flashcards fetched successfully",
+      data: flashcards,
+      totalPages: Math.ceil(total / limit),
+      totalCount: total,
+      page,
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to fetch flashcards" });
+  }
+};
+
+// /api/v1/flashcards/me
+export const getMyFlashcards = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) return res.status(401).json({ message: "Unauthorized" });
 
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
     const skip = (page - 1) * limit;
 
-    const query: any = { ownerId: req.user.sub };
-    if (noteId) query.noteId = noteId;
-
-    const flashcards = await Flashcard.find(query)
+    const flashcards = await Flashcard.find({ user: req.user.sub })
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
 
-    const total = await Flashcard.countDocuments(query);
+    const total = await Flashcard.countDocuments({ user: req.user.sub });
 
-    return res.status(200).json({
-      message: "Flashcards fetched successfully",
+    res.status(200).json({
+      message: "Your flashcards fetched successfully",
       data: flashcards,
       totalPages: Math.ceil(total / limit),
       totalCount: total,
-      page
+      page,
     });
 
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Failed to get flashcards" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to fetch your flashcards" });
   }
 };
 
-// GET /api/flashcards/:id
-export const getSingleFlashcard = async (req: AuthRequest, res: Response) => {
+// /api/v1/flashcards/:id
+export const getFlashcardById = async (req: Request, res: Response) => {
   try {
-    if (!req.user)
-      return res.status(401).json({ message: "Unauthorized" });
+    const flashcard = await Flashcard.findById(req.params.id);
 
-    const { id } = req.params;
+    if (!flashcard) {
+      return res.status(404).json({ message: "Flashcard not found" });
+    }
 
-    const card = await Flashcard.findOne({
-      _id: id,
-      ownerId: req.user.sub
+    res.status(200).json({
+      message: "Flashcard fetched successfully",
+      data: flashcard,
     });
 
-    if (!card)
-      return res.status(404).json({ message: "Flashcard not found" });
-
-    return res.status(200).json({ data: card });
-
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Failed to get flashcard" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to fetch flashcard" });
   }
 };
 
-// PUT /api/flashcards/:id
+// /api/v1/flashcards/update/:id
 export const updateFlashcard = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user)
-      return res.status(401).json({ message: "Unauthorized" });
-
-    const { id } = req.params;
+    if (!req.user) return res.status(401).json({ message: "Unauthorized" });
 
     const updated = await Flashcard.findOneAndUpdate(
-      { _id: id, ownerId: req.user.sub },
+      { _id: req.params.id, user: req.user.sub },
       req.body,
       { new: true }
     );
 
-    if (!updated)
-      return res.status(404).json({ message: "Flashcard not found or not yours" });
+    if (!updated) {
+      return res.status(404).json({ message: "Flashcard not found or access denied" });
+    }
 
-    return res.status(200).json({
+    res.status(200).json({
       message: "Flashcard updated successfully",
-      data: updated
+      data: updated,
     });
 
-  } catch (error) {
-    console.error(error);
+  } catch (err) {
+    console.error(err);
     res.status(500).json({ message: "Failed to update flashcard" });
   }
 };
 
-// DELETE /api/flashcards/:id
+// /api/v1/flashcards/delete/:id
 export const deleteFlashcard = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user)
-      return res.status(401).json({ message: "Unauthorized" });
-
-    const { id } = req.params;
+    if (!req.user) return res.status(401).json({ message: "Unauthorized" });
 
     const deleted = await Flashcard.findOneAndDelete({
-      _id: id,
-      ownerId: req.user.sub
+      _id: req.params.id,
+      user: req.user.sub,
     });
 
-    if (!deleted)
-      return res.status(404).json({ message: "Flashcard not found" });
+    if (!deleted) {
+      return res.status(404).json({ message: "Flashcard not found or access denied" });
+    }
 
-    return res.status(200).json({ message: "Flashcard deleted successfully" });
+    res.status(200).json({
+      message: "Flashcard deleted successfully",
+      data: deleted,
+    });
 
-  } catch (error) {
-    console.error(error);
+  } catch (err) {
+    console.error(err);
     res.status(500).json({ message: "Failed to delete flashcard" });
   }
 };
