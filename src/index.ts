@@ -34,11 +34,11 @@ app.use(cookieParser());
 // Routes
 app.use('/api/v1/auth', authRoutes)
 app.use('/api/v1/notes', noteRoutes);
-// app.use('/api/v1/flashcards', flashcardRoutes);
-// app.use('/api/v1/questions', questionRoutes);
-// app.use('/api/v1/quizzes', quizRoutes);
-// app.use('/api/v1/rooms', quizRoomRoutes);
-// app.use('/api/v1/attempts', attemptRoutes);
+app.use('/api/v1/flashcards', flashcardRoutes);
+app.use('/api/v1/questions', questionRoutes);
+app.use('/api/v1/quizzes', quizRoutes);
+app.use('/api/v1/rooms', quizRoomRoutes);
+app.use('/api/v1/attempts', attemptRoutes);
 
 // Test route
 app.get("/", (req, res) => {
