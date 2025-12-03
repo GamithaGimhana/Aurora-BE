@@ -1,203 +1,176 @@
 import { Request, Response } from "express";
 import { AuthRequest } from "../middlewares/auth.middleware";
-import Question, { QuestionType } from "../models/Question";
-import Quiz from "../models/Quiz";
-import { Types } from "mongoose";
+import Question from "../models/Question";
 
-// POST /api/questions
+// /api/v1/questions/create
 export const createQuestion = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user)
+    if (!req.user) {
       return res.status(401).json({ message: "Unauthorized" });
-
-    const { quizId, text, choices, correctIndex, type } = req.body;
-
-    if (!quizId || !text || !type)
-      return res.status(400).json({ message: "Missing fields" });
-
-    // Check if quiz belongs to the user
-    const quiz = await Quiz.findOne({
-      _id: quizId,
-      ownerId: req.user.sub
-    });
-
-    if (!quiz)
-      return res.status(403).json({ message: "You do not own this quiz" });
-
-    // MCQ must have choices & correctIndex
-    if (type === QuestionType.MCQ) {
-      if (!choices || !Array.isArray(choices) || choices.length < 2)
-        return res.status(400).json({ message: "MCQ requires at least 2 choices" });
-
-      if (correctIndex === undefined || correctIndex < 0 || correctIndex >= choices.length)
-        return res.status(400).json({ message: "Invalid correctIndex" });
     }
 
-    const question = new Question({
-      quizId,
-      text,
-      choices,
-      correctIndex,
-      type
+    const { question, options, answer, explanation, topic } = req.body;
+
+    if (!question || !options || !answer || !topic) {
+      return res.status(400).json({ message: "All fields are required" });
+    }
+
+    if (!Array.isArray(options) || options.length < 2) {
+      return res.status(400).json({ message: "Options must be an array of at least 2 items" });
+    }
+
+    const newQuestion = new Question({
+      question,
+      options,
+      answer,
+      explanation,
+      topic,
+      user: req.user.sub,
     });
 
-    await question.save();
+    await newQuestion.save();
 
-    // Add question to quiz
-    quiz.questionIds.push(new Types.ObjectId(question._id));
-    await quiz.save();
-
-    return res.status(201).json({
+    res.status(201).json({
       message: "Question created successfully",
-      data: question
+      data: newQuestion,
     });
 
-  } catch (error) {
-    console.error(error);
+  } catch (err) {
+    console.error(err);
     res.status(500).json({ message: "Failed to create question" });
   }
 };
 
-// GET /api/questions?quizId=xxxx&page=1&limit=10
-export const getQuestions = async (req: AuthRequest, res: Response) => {
+// /api/v1/questions?page=1&limit=10
+export const getAllQuestions = async (req: Request, res: Response) => {
   try {
-    if (!req.user)
-      return res.status(401).json({ message: "Unauthorized" });
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const skip = (page - 1) * limit;
 
-    const quizId = req.query.quizId as string;
-    if (!quizId)
-      return res.status(400).json({ message: "quizId required" });
+    const questions = await Question.find()
+      .populate("user", "name email")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
 
-    // Validate ownership
-    const quiz = await Quiz.findOne({
-      _id: quizId,
-      ownerId: req.user.sub
+    const total = await Question.countDocuments();
+
+    res.status(200).json({
+      message: "Questions fetched successfully",
+      data: questions,
+      totalPages: Math.ceil(total / limit),
+      totalCount: total,
+      page,
     });
 
-    if (!quiz)
-      return res.status(403).json({ message: "You do not own this quiz" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to fetch questions" });
+  }
+};
+
+// /api/v1/questions/me
+export const getMyQuestions = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) return res.status(401).json({ message: "Unauthorized" });
 
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
     const skip = (page - 1) * limit;
 
-    const questions = await Question.find({ quizId })
+    const questions = await Question.find({ user: req.user.sub })
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
 
-    const total = await Question.countDocuments({ quizId });
+    const total = await Question.countDocuments({ user: req.user.sub });
 
-    return res.status(200).json({
-      message: "Questions fetched successfully",
+    res.status(200).json({
+      message: "Your questions fetched successfully",
       data: questions,
       totalPages: Math.ceil(total / limit),
       totalCount: total,
-      page
+      page,
     });
 
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Failed to fetch questions" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to fetch your questions" });
   }
 };
 
-// GET /api/questions/:id
-export const getSingleQuestion = async (req: AuthRequest, res: Response) => {
+// /api/v1/questions/:id
+export const getQuestionById = async (req: Request, res: Response) => {
   try {
-    if (!req.user)
-      return res.status(401).json({ message: "Unauthorized" });
+    const question = await Question.findById(req.params.id);
 
-    const { id } = req.params;
-
-    const question = await Question.findById(id);
-    if (!question)
+    if (!question) {
       return res.status(404).json({ message: "Question not found" });
+    }
 
-    // Check quiz ownership
-    const quiz = await Quiz.findOne({
-      _id: question.quizId,
-      ownerId: req.user.sub
+    res.status(200).json({
+      message: "Question fetched successfully",
+      data: question,
     });
 
-    if (!quiz)
-      return res.status(403).json({ message: "You do not own this quiz" });
-
-    return res.status(200).json({ data: question });
-
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Failed to get question" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to fetch question" });
   }
 };
 
-// PUT /api/questions/:id
+// /api/v1/questions/update/:id
 export const updateQuestion = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user)
-      return res.status(401).json({ message: "Unauthorized" });
+    if (!req.user) return res.status(401).json({ message: "Unauthorized" });
 
-    const { id } = req.params;
+    const updated = await Question.findOneAndUpdate(
+      { _id: req.params.id, user: req.user.sub },
+      req.body,
+      { new: true }
+    );
 
-    const question = await Question.findById(id);
-    if (!question)
-      return res.status(404).json({ message: "Question not found" });
+    if (!updated) {
+      return res.status(404).json({
+        message: "Question not found or access denied",
+      });
+    }
 
-    const quiz = await Quiz.findOne({
-      _id: question.quizId,
-      ownerId: req.user.sub
-    });
-
-    if (!quiz)
-      return res.status(403).json({ message: "Not your quiz" });
-
-    const updated = await Question.findByIdAndUpdate(id, req.body, {
-      new: true
-    });
-
-    return res.status(200).json({
+    res.status(200).json({
       message: "Question updated successfully",
-      data: updated
+      data: updated,
     });
 
-  } catch (error) {
-    console.error(error);
+  } catch (err) {
+    console.error(err);
     res.status(500).json({ message: "Failed to update question" });
   }
 };
 
-// DELETE /api/questions/:id
+// /api/v1/questions/delete/:id
 export const deleteQuestion = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user)
-      return res.status(401).json({ message: "Unauthorized" });
+    if (!req.user) return res.status(401).json({ message: "Unauthorized" });
 
-    const { id } = req.params;
-
-    const question = await Question.findById(id);
-    if (!question)
-      return res.status(404).json({ message: "Question not found" });
-
-    const quiz = await Quiz.findOne({
-      _id: question.quizId,
-      ownerId: req.user.sub
+    const deleted = await Question.findOneAndDelete({
+      _id: req.params.id,
+      user: req.user.sub,
     });
 
-    if (!quiz)
-      return res.status(403).json({ message: "Not your quiz" });
+    if (!deleted) {
+      return res.status(404).json({
+        message: "Question not found or access denied",
+      });
+    }
 
-    // Remove question from quiz list
-    quiz.questionIds = quiz.questionIds.filter(
-      (qId) => qId.toString() !== id
-    );
-    await quiz.save();
+    res.status(200).json({
+      message: "Question deleted successfully",
+      data: deleted,
+    });
 
-    await question.deleteOne();
-
-    return res.status(200).json({ message: "Question deleted successfully" });
-
-  } catch (error) {
-    console.error(error);
+  } catch (err) {
+    console.error(err);
     res.status(500).json({ message: "Failed to delete question" });
   }
 };
