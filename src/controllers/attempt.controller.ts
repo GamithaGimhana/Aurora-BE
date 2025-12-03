@@ -4,143 +4,160 @@ import Attempt from "../models/Attempt";
 import QuizRoom from "../models/QuizRoom";
 import Quiz from "../models/Quiz";
 import Question from "../models/Question";
-import { Types } from "mongoose";
 
-// POST /api/attempts/submit/:roomCode
-export const submitAttempt = async (req: AuthRequest, res: Response) => {
+// /api/v1/attempts/create
+export const createAttempt = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user || !req.user.role?.includes("STUDENT")) {
-      return res.status(403).json({ message: "Only students can submit attempts" });
-    }
+    if (!req.user)
+      return res.status(401).json({ message: "Unauthorized" });
 
-    const { roomCode } = req.params;
-    const { answers, timeTakenSeconds } = req.body;
+    const { quizRoomId, responses } = req.body;
 
-    if (!answers || !Array.isArray(answers)) {
-      return res.status(400).json({ message: "Invalid answers format" });
-    }
-
-    const room = await QuizRoom.findOne({ code: roomCode });
-    if (!room) return res.status(404).json({ message: "Room not found" });
-
-    // Check if room is active
-    if (!room.isActive || !room.startTime) {
-      return res.status(403).json({ message: "Room is not active" });
-    }
-
-    // Time validation
-    const now = Date.now();
-    const start = room.startTime.getTime();
-    const end = start + room.durationMinutes * 60 * 1000;
-
-    if (now > end) {
-      return res.status(403).json({ message: "Room time expired" });
-    }
-
-    // Prevent duplicate attempts
-    const existing = await Attempt.findOne({
-      roomId: room._id,
-      userId: req.user.sub
-    });
-    if (existing) {
-      return res.status(409).json({ message: "Attempt already submitted" });
-    }
-
-    // Fetch quiz + questions
-    const quiz = await Quiz.findById(room.quizId);
-    if (!quiz) {
-      return res.status(404).json({ message: "Quiz not found" });
-    }
-
-    const questions = await Question.find({
-      _id: { $in: quiz.questionIds }
-    });
-
-    // Score calculation
-    const evaluatedAnswers: any[] = [];
-    let score = 0;
-
-    for (const ans of answers) {
-      const question = questions.find(
-        (q) => q._id.toString() === ans.questionId
-      );
-
-      if (!question) continue;
-
-      let isCorrect = false;
-
-      switch (question.type) {
-        case "MCQ":
-          isCorrect = question.correctIndex === ans.answerIndex;
-          break;
-
-        case "TRUE_FALSE":
-          isCorrect = String(question.correctIndex) === String(ans.answer);
-          break;
-
-        case "SHORT":
-          isCorrect =
-            question.text
-              .trim()
-              .toLowerCase() ===
-            String(ans.answer).trim().toLowerCase();
-          break;
-      }
-
-      if (isCorrect) score++;
-
-      evaluatedAnswers.push({
-        questionId: question._id,
-        answer: ans.answer,
-        correct: isCorrect
+    if (!quizRoomId || !responses || !Array.isArray(responses)) {
+      return res.status(400).json({
+        message: "quizRoomId and responses are required",
       });
     }
 
-    // Save attempt
+    // Validate room
+    const room = await QuizRoom.findById(quizRoomId).populate("quiz");
+    if (!room) return res.status(404).json({ message: "Quiz room not found" });
+    if (!room.active) return res.status(400).json({ message: "Room is closed" });
+
+    // Get quiz to validate questions
+    const quiz = await Quiz.findById(room.quiz).populate("questions");
+    if (!quiz) return res.status(404).json({ message: "Quiz not found" });
+
+    // Map of correct answers
+    const questionMap = new Map();
+    quiz.questions.forEach((q: any) => {
+      questionMap.set(q._id.toString(), q.correctAnswer);
+    });
+
+    // Validate & compute score
+    let score = 0;
+
+    const processedResponses = await Promise.all(
+      responses.map(async (resp: any) => {
+        const questionId = resp.question;
+        const selected = resp.selected;
+
+        const correctAnswer = questionMap.get(questionId);
+        const isCorrect = selected === correctAnswer;
+
+        if (isCorrect) score++;
+
+        return {
+          question: questionId,
+          selected,
+          correct: isCorrect,
+        };
+      })
+    );
+
     const attempt = new Attempt({
-      roomId: room._id,
-      userId: new Types.ObjectId(req.user.sub),
-      answers: evaluatedAnswers,
+      student: req.user.sub,
+      quizRoom: quizRoomId,
+      responses: processedResponses,
       score,
-      timeTakenSeconds: timeTakenSeconds || 0
     });
 
     await attempt.save();
 
-    return res.status(201).json({
-      message: "Attempt submitted successfully",
+    res.status(201).json({
+      message: "Attempt submitted",
       data: {
+        attemptId: attempt._id,
         score,
-        totalQuestions: questions.length,
-        answers: evaluatedAnswers
-      }
+      },
     });
 
-  } catch (error) {
-    console.error(error);
+  } catch (err) {
+    console.error(err);
     res.status(500).json({ message: "Failed to submit attempt" });
   }
 };
 
-// GET /api/attempts/leaderboard/:roomCode
-export const getLeaderboard = async (req: AuthRequest, res: Response) => {
+// /api/v1/attempts/room/:roomId
+export const getAttemptsByRoom = async (req: Request, res: Response) => {
   try {
-    const { roomCode } = req.params;
+    const roomId = req.params.roomId;
 
-    const room = await QuizRoom.findOne({ code: roomCode });
-    if (!room) return res.status(404).json({ message: "Room not found" });
+    const attempts = await Attempt.find({ quizRoom: roomId })
+      .populate("student", "name email")
+      .sort({ score: -1 });
 
-    const attempts = await Attempt.find({ roomId: room._id })
-      .populate("userId", "name email")
-      .sort({ score: -1, timeTakenSeconds: 1 }); // highest score, shortest time
-
-    return res.status(200).json({
-      message: "Leaderboard",
-      data: attempts
+    res.status(200).json({
+      message: "Attempts fetched",
+      data: attempts,
     });
 
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Failed to get leaderboard" });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to fetch attempts" });
+  }
+};
+
+// /api/v1/attempts/me
+export const getMyAttempts = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user)
+      return res.status(401).json({ message: "Unauthorized" });
+
+    const attempts = await Attempt.find({ student: req.user.sub })
+      .populate({
+        path: "quizRoom",
+        populate: { path: "quiz" }
+      })
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      message: "Your attempts fetched",
+      data: attempts,
+    });
+
+  } catch (err) {
+    res.status(500).json({ message: "Failed to fetch your attempts" });
+  }
+};
+
+// /api/v1/attempts/:id
+export const getAttemptById = async (req: Request, res: Response) => {
+  try {
+    const attempt = await Attempt.findById(req.params.id)
+      .populate("student", "name email")
+      .populate({
+        path: "quizRoom",
+        populate: { path: "quiz" },
+      })
+      .populate("responses.question");
+
+    if (!attempt)
+      return res.status(404).json({ message: "Attempt not found" });
+
+    res.status(200).json({
+      message: "Attempt fetched",
+      data: attempt,
+    });
+
+  } catch (err) {
+    res.status(500).json({ message: "Failed to fetch attempt" });
+  }
+};
+
+// /api/v1/attempts/delete/:id (admin/lecturer only)
+export const deleteAttempt = async (req: AuthRequest, res: Response) => {
+  try {
+    const deleted = await Attempt.findByIdAndDelete(req.params.id);
+
+    if (!deleted)
+      return res.status(404).json({ message: "Attempt not found" });
+
+    res.status(200).json({
+      message: "Attempt deleted",
+      data: deleted,
+    });
+
+  } catch (err) {
+    res.status(500).json({ message: "Failed to delete attempt" });
   }
 };
