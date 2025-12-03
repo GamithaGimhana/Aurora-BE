@@ -1,35 +1,21 @@
-import { Schema, model, Document, Types } from "mongoose";
-
-export enum QuestionType {
-  MCQ = "MCQ",
-  TRUE_FALSE = "TRUE_FALSE",
-  SHORT = "SHORT"
-}
+import mongoose, { Document, Schema } from "mongoose";
 
 export interface IQuestion extends Document {
-  text: string;
-  choices?: string[];
-  correctIndex?: number;
-  type: QuestionType;
-  quizId?: Types.ObjectId;
+  _id: mongoose.Types.ObjectId;
+  question: string;
+  options: string[];
+  correctAnswer: string;
+  explanation?: string;
 }
 
 const questionSchema = new Schema<IQuestion>(
   {
-    text: { type: String, required: true },
-
-    choices: [{ type: String }],
-    correctIndex: { type: Number },
-
-    type: {
-      type: String,
-      enum: Object.values(QuestionType),
-      required: true
-    },
-
-    quizId: { type: Schema.Types.ObjectId, ref: "Quiz" }
+    question: { type: String, required: true },
+    options: { type: [String], required: true },
+    correctAnswer: { type: String, required: true },
+    explanation: { type: String }
   },
   { timestamps: true }
 );
 
-export default model<IQuestion>("Question", questionSchema);
+export default mongoose.model<IQuestion>("Question", questionSchema);

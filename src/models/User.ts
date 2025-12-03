@@ -1,4 +1,4 @@
-import { Schema, model, Document } from "mongoose";
+import mongoose, { Document, Schema } from "mongoose";
 
 export enum Role {
   STUDENT = "STUDENT",
@@ -6,6 +6,7 @@ export enum Role {
 }
 
 export interface IUser extends Document {
+  _id: mongoose.Types.ObjectId;
   name: string;
   email: string;
   password: string;
@@ -22,4 +23,4 @@ const userSchema = new Schema<IUser>(
   { timestamps: true }
 );
 
-export default model<IUser>("User", userSchema);
+export default mongoose.model<IUser>("User", userSchema);

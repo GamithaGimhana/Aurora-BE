@@ -1,24 +1,23 @@
-import { Schema, model, Document, Types } from "mongoose";
+import mongoose, { Document, Schema } from "mongoose";
 
 export interface IQuiz extends Document {
-  ownerId: Types.ObjectId; // student or lecturer
+  _id: mongoose.Types.ObjectId;
   title: string;
-  questionIds: Types.ObjectId[];
-  visibility: "PRIVATE" | "PUBLIC";
+  topic: string;
+  user: mongoose.Types.ObjectId;
+  questions: mongoose.Types.ObjectId[];
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 const quizSchema = new Schema<IQuiz>(
   {
-    ownerId: { type: Schema.Types.ObjectId, ref: "User", required: true },
     title: { type: String, required: true },
-    questionIds: [{ type: Schema.Types.ObjectId, ref: "Question", required: true }],
-    visibility: {
-      type: String,
-      enum: ["PRIVATE", "PUBLIC"],
-      default: "PRIVATE"
-    }
+    topic: { type: String, required: true },
+    user: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    questions: [{ type: Schema.Types.ObjectId, ref: "Question" }]
   },
   { timestamps: true }
 );
 
-export default model<IQuiz>("Quiz", quizSchema);
+export default mongoose.model<IQuiz>("Quiz", quizSchema);

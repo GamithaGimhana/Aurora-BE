@@ -1,22 +1,21 @@
-import { Schema, model, Document, Types } from "mongoose";
+import mongoose, { Document, Schema } from "mongoose";
 
 export interface INote extends Document {
-  ownerId: Types.ObjectId;
+  _id: mongoose.Types.ObjectId;
   title: string;
-  topic: string;
   content: string;
-  sourcePdfUrl?: string;
+  user: mongoose.Types.ObjectId;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 const noteSchema = new Schema<INote>(
   {
-    ownerId: { type: Schema.Types.ObjectId, ref: "User", required: true },
     title: { type: String, required: true },
-    topic: { type: String, required: true },
     content: { type: String, required: true },
-    sourcePdfUrl: { type: String }
+    user: { type: Schema.Types.ObjectId, ref: "User", required: true }
   },
   { timestamps: true }
 );
 
-export default model<INote>("Note", noteSchema);
+export default mongoose.model<INote>("Note", noteSchema);

@@ -1,28 +1,23 @@
-import { Schema, model, Document, Types } from "mongoose";
-
-export enum Difficulty {
-  EASY = "EASY",
-  MEDIUM = "MEDIUM",
-  HARD = "HARD"
-}
+import mongoose, { Document, Schema } from "mongoose";
 
 export interface IFlashcard extends Document {
-  noteId: Types.ObjectId;
-  ownerId: Types.ObjectId;
+  _id: mongoose.Types.ObjectId;
   question: string;
   answer: string;
-  difficulty: Difficulty;
+  topic: string;
+  user: mongoose.Types.ObjectId;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 const flashcardSchema = new Schema<IFlashcard>(
   {
-    noteId: { type: Schema.Types.ObjectId, ref: "Note", required: true },
-    ownerId: { type: Schema.Types.ObjectId, ref: "User", required: true },
     question: { type: String, required: true },
     answer: { type: String, required: true },
-    difficulty: { type: String, enum: Object.values(Difficulty), default: Difficulty.MEDIUM }
+    topic: { type: String, required: true },
+    user: { type: Schema.Types.ObjectId, ref: "User", required: true }
   },
   { timestamps: true }
 );
 
-export default model<IFlashcard>("Flashcard", flashcardSchema);
+export default mongoose.model<IFlashcard>("Flashcard", flashcardSchema);
