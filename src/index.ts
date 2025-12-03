@@ -10,6 +10,7 @@ import questionRoutes from "./routes/question.routes";
 import quizRoutes from "./routes/quiz.routes";
 import quizRoomRoutes from "./routes/quizRoom.routes";
 import attemptRoutes from "./routes/attempt.routes";
+import { createDefaultAdmin } from "./config/createAdmin";
 
 dotenv.config();
 
@@ -33,11 +34,11 @@ app.use(cookieParser());
 // Routes
 app.use('/api/v1/auth', authRoutes)
 app.use('/api/v1/notes', noteRoutes);
-app.use('/api/v1/flashcards', flashcardRoutes);
-app.use('/api/v1/questions', questionRoutes);
-app.use('/api/v1/quizzes', quizRoutes);
-app.use('/api/v1/rooms', quizRoomRoutes);
-app.use('/api/v1/attempts', attemptRoutes);
+// app.use('/api/v1/flashcards', flashcardRoutes);
+// app.use('/api/v1/questions', questionRoutes);
+// app.use('/api/v1/quizzes', quizRoutes);
+// app.use('/api/v1/rooms', quizRoomRoutes);
+// app.use('/api/v1/attempts', attemptRoutes);
 
 // Test route
 app.get("/", (req, res) => {
@@ -47,6 +48,7 @@ app.get("/", (req, res) => {
 // Start server
 const startServer = async () => {
   await connectDB();
+  await createDefaultAdmin();
   app.listen(SERVER_PORT, () =>
     console.log(`Server running on port ${SERVER_PORT}`)
   );
