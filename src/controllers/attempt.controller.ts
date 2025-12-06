@@ -19,6 +19,15 @@ export const createAttempt = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    const existing = await Attempt.findOne({
+      student: req.user.sub,
+      quizRoom: quizRoomId
+    });
+
+    if (existing) {
+      return res.status(400).json({ message: "You already attempted this quiz" });
+    }
+
     // Validate room
     const room = await QuizRoom.findById(quizRoomId).populate("quiz");
     if (!room) return res.status(404).json({ message: "Quiz room not found" });
@@ -31,7 +40,7 @@ export const createAttempt = async (req: AuthRequest, res: Response) => {
     // Map of correct answers
     const questionMap = new Map();
     quiz.questions.forEach((q: any) => {
-      questionMap.set(q._id.toString(), q.correctAnswer);
+      questionMap.set(q._id.toString(), q.answer);
     });
 
     // Validate & compute score

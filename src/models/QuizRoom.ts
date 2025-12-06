@@ -3,9 +3,9 @@ import mongoose, { Document, Schema } from "mongoose";
 export interface IQuizRoom extends Document {
   _id: mongoose.Types.ObjectId;
   quiz: mongoose.Types.ObjectId;
-  code: string;
+  roomCode: string;
   lecturer: mongoose.Types.ObjectId;
-  duration: number; // minutes
+  timeLimit: number; // minutes
   active: boolean;
   createdAt?: Date;
   updatedAt?: Date;
@@ -14,9 +14,9 @@ export interface IQuizRoom extends Document {
 const quizRoomSchema = new Schema<IQuizRoom>(
   {
     quiz: { type: Schema.Types.ObjectId, ref: "Quiz", required: true },
-    code: { type: String, required: true, unique: true },
+    roomCode: { type: String, required: true, unique: true },
     lecturer: { type: Schema.Types.ObjectId, ref: "User", required: true },
-    duration: { type: Number, required: true },
+    timeLimit: { type: Number, required: true },
     active: { type: Boolean, default: true }
   },
   { timestamps: true }
