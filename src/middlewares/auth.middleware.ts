@@ -9,7 +9,7 @@ const JWT_SECRET = process.env.JWT_SECRET as string;
 export interface AuthRequest extends Request {
   user?: {
     sub: string;
-    role: Role;
+    role: Role[];
   };
 }
 
@@ -29,7 +29,7 @@ export const authenticate = (
   try {
     const payload = jwt.verify(token, JWT_SECRET) as {
       sub: string;
-      role: Role
+      role: Role[];
     };
 
     req.user = payload;

@@ -23,7 +23,8 @@ export const signAccessToken = (user: IUser): string => {
 export const signRefreshToken = (user: IUser): string => {
   return jwt.sign(
     {
-      sub: user._id.toString()
+      sub: user._id.toString(),
+      role: user.role,
     },
     JWT_REFRESH_SECRET,
     {
