@@ -73,12 +73,18 @@ export const getMyFlashcards = async (req: AuthRequest, res: Response) => {
     const limit = parseInt(req.query.limit as string) || 10;
     const skip = (page - 1) * limit;
 
-    const flashcards = await Flashcard.find({ user: req.user.sub })
+    const filter: any = { user: req.user.sub };
+
+    if (req.query.topic) {
+      filter.topic = req.query.topic;
+    }
+
+    const flashcards = await Flashcard.find(filter)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
 
-    const total = await Flashcard.countDocuments({ user: req.user.sub });
+    const total = await Flashcard.countDocuments(filter);
 
     res.status(200).json({
       message: "Your flashcards fetched successfully",
