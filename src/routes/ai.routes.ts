@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { authenticate } from "../middlewares/auth.middleware";
 import { requireRole } from "../middlewares/role.middleware";
+import { upload } from "../middlewares/upload.middleware";
 import { Role } from "../models/User";
 
 import {
@@ -16,6 +17,7 @@ router.post(
   "/generate-notes",
   authenticate,
   requireRole([Role.STUDENT, Role.LECTURER, Role.ADMIN]),
+  upload.single("file"),
   generateNotes
 );
 

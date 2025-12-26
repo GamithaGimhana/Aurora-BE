@@ -5,44 +5,29 @@ import Question from "../models/Question";
 
 // /api/v1/quizzes/create
 export const createQuiz = async (req: AuthRequest, res: Response) => {
-  try {
-    if (!req.user) return res.status(401).json({ message: "Unauthorized" });
+  if (!req.user) return res.status(401).json({ message: "Unauthorized" });
 
-    const { title, description, questions, timeLimit, topic } = req.body;
+  const { title, description, questions, topic, difficulty } = req.body;
 
-    if (!title || !questions || !Array.isArray(questions) || questions.length === 0) {
-      return res.status(400).json({ message: "Title and at least one question are required" });
-    }
-
-    // Validate each question ID actually exists
-    const validQuestions = await Question.find({ _id: { $in: questions } });
-
-    if (validQuestions.length !== questions.length) {
-      return res.status(400).json({
-        message: "Some question IDs are invalid",
-      });
-    }
-
-    const newQuiz = new Quiz({
-      title,
-      description,
-      questions,
-      timeLimit,
-      topic,
-      user: req.user.sub,
-    });
-
-    await newQuiz.save();
-
-    res.status(201).json({
-      message: "Quiz created successfully",
-      data: newQuiz,
-    });
-
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Failed to create quiz" });
+  if (!title || !questions || !Array.isArray(questions) || questions.length === 0) {
+    return res.status(400).json({ message: "Title and questions are required" });
   }
+
+  const newQuiz = new Quiz({
+    title,
+    description,
+    topic,
+    difficulty,
+    questions, 
+    user: req.user.sub,
+  });
+
+  await newQuiz.save();
+
+  res.status(201).json({
+    message: "Quiz created successfully",
+    data: newQuiz,
+  });
 };
 
 // /api/v1/quizzes?page=1&limit=10
