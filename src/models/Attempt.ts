@@ -1,33 +1,63 @@
-import mongoose, { Document, Schema } from "mongoose";
+import mongoose, { Schema, Document } from "mongoose";
 
 export interface IAttempt extends Document {
-  _id: mongoose.Types.ObjectId;
-  student: mongoose.Types.ObjectId;
   quizRoom: mongoose.Types.ObjectId;
+  student: mongoose.Types.ObjectId;
+
+  attemptNumber: number;
   responses: {
     question: mongoose.Types.ObjectId;
     selected: string;
     correct: boolean;
   }[];
+
   score: number;
-  createdAt?: Date;
-  updatedAt?: Date;
+  submittedAt: Date;
 }
 
-const attemptSchema = new Schema<IAttempt>(
-  {
-    student: { type: Schema.Types.ObjectId, ref: "User", required: true },
-    quizRoom: { type: Schema.Types.ObjectId, ref: "QuizRoom", required: true },
-    responses: [
-      {
-        question: { type: Schema.Types.ObjectId, ref: "Question", required: true },
-        selected: { type: String, required: true },
-        correct: { type: Boolean, required: true }
-      }
-    ],
-    score: { type: Number, required: true }
+const AttemptSchema = new Schema<IAttempt>({
+  quizRoom: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "QuizRoom",
+    required: true,
   },
-  { timestamps: true }
-);
+  student: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    required: true,
+  },
 
-export default mongoose.model<IAttempt>("Attempt", attemptSchema);
+  attemptNumber: {
+    type: Number,
+    required: true,
+  },
+
+  responses: [
+    {
+      question: {
+        type: mongoose.Schema.Types.ObjectId,
+        required: true,
+      },
+      selected: {
+        type: String,
+        required: true,
+      },
+      correct: {
+        type: Boolean,
+        required: true,
+      },
+    },
+  ],
+
+  score: {
+    type: Number,
+    required: true,
+  },
+
+  submittedAt: {
+    type: Date,
+    default: Date.now,
+  },
+});
+
+export default mongoose.model<IAttempt>("Attempt", AttemptSchema);

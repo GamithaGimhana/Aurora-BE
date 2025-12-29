@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import QuizRoom from "../models/QuizRoom";
+import Attempt from "../models/Attempt";
 import Quiz from "../models/Quiz";
 
 // Helper to generate random 6-digit room code
@@ -106,6 +107,10 @@ export const getRoomByCode = async (req: Request, res: Response) => {
     if (!room)
       return res.status(404).json({ message: "Room not found" });
 
+    if (!room.active) {
+      return res.status(403).json({ message: "Quiz room is closed" });
+    }
+
     res.status(200).json({
       message: "Room found",
       data: room,
@@ -162,5 +167,81 @@ export const deleteRoom = async (req: AuthRequest, res: Response) => {
 
   } catch (err) {
     res.status(500).json({ message: "Failed to delete room" });
+  }
+};
+
+export const startQuiz = async (req: any, res: any) => {
+  try {
+    const { roomId } = req.params;
+    const studentId = req.user.sub; // from JWT
+
+    // Find room + quiz
+    const room = await QuizRoom.findById(roomId).populate("quiz");
+
+    if (!room || !room.active) {
+      return res.status(404).json({ message: "Quiz room not available" });
+    }
+
+    // Count previous attempts by this student
+    const attempts = await Attempt.countDocuments({
+      quizRoom: roomId,
+      student: studentId,
+    });
+
+    if (attempts >= room.maxAttempts) {
+      return res.status(403).json({ message: "Attempt limit reached" });
+    }
+
+    // Initialize timer (only once)
+    if (!room.startsAt) {
+      room.startsAt = new Date();
+      room.endsAt = new Date(
+        Date.now() + room.timeLimit * 60 * 1000
+      );
+      await room.save();
+    }
+
+    // Return quiz WITHOUT answers
+    const quiz = room.quiz as any;
+
+    const safeQuestions = quiz.questions.map((q: any) => ({
+      _id: q._id,
+      question: q.question,
+      options: q.options,
+    }));
+
+    return res.json({
+      roomId: room._id,
+      endsAt: room.endsAt,
+      quiz: {
+        title: quiz.title,
+        questions: safeQuestions,
+      },
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to start quiz" });
+  }
+};
+
+export const closeRoom = async (req: Request, res: Response) => {
+  try {
+    const { roomId } = req.params;
+
+    const room = await QuizRoom.findById(roomId);
+
+    if (!room) {
+      return res.status(404).json({ message: "Quiz room not found" });
+    }
+
+    room.active = false;
+    await room.save();
+
+    return res.status(200).json({
+      message: "Quiz room closed successfully",
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Failed to close quiz room" });
   }
 };

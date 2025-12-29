@@ -5,84 +5,72 @@ import QuizRoom from "../models/QuizRoom";
 import Quiz from "../models/Quiz";
 import Question from "../models/Question";
 
-// /api/v1/attempts/create
-export const createAttempt = async (req: AuthRequest, res: Response) => {
+export const createAttempt = async (req: any, res: Response) => {
   try {
-    if (!req.user)
-      return res.status(401).json({ message: "Unauthorized" });
+    const { quizRoomId, answers } = req.body;
+    const studentId = req.user.sub;
 
-    const { quizRoomId, responses } = req.body;
-
-    if (!quizRoomId || !responses || !Array.isArray(responses)) {
-      return res.status(400).json({
-        message: "quizRoomId and responses are required",
-      });
-    }
-
-    const existing = await Attempt.findOne({
-      student: req.user.sub,
-      quizRoom: quizRoomId
-    });
-
-    if (existing) {
-      return res.status(400).json({ message: "You already attempted this quiz" });
-    }
-
-    // Validate room
+    // Validate quiz room
     const room = await QuizRoom.findById(quizRoomId).populate("quiz");
-    if (!room) return res.status(404).json({ message: "Quiz room not found" });
-    if (!room.active) return res.status(400).json({ message: "Room is closed" });
 
-    // Get quiz to validate questions
-    const quiz = await Quiz.findById(room.quiz).populate("questions");
-    if (!quiz) return res.status(404).json({ message: "Quiz not found" });
+    if (!room || !room.active) {
+      return res.status(404).json({ message: "Quiz room not active" });
+    }
 
-    // Map of correct answers
-    const questionMap = new Map();
-    quiz.questions.forEach((q: any) => {
-      questionMap.set(q._id.toString(), q.answer);
+    // Time window validation
+    if (room.endsAt && new Date() > room.endsAt) {
+      return res.status(403).json({ message: "Quiz time expired" });
+    }
+
+    // Attempt count validation
+    const attemptCount = await Attempt.countDocuments({
+      quizRoom: quizRoomId,
+      student: studentId,
     });
 
-    // Validate & compute score
+    if (attemptCount >= room.maxAttempts) {
+      return res.status(403).json({ message: "Attempt limit reached" });
+    }
+
+    // Score calculation (SERVER-SIDE)
+    const quiz: any = room.quiz;
+
     let score = 0;
 
-    const processedResponses = await Promise.all(
-      responses.map(async (resp: any) => {
-        const questionId = resp.question;
-        const selected = resp.selected;
+    const responses = quiz.questions.map((q: any) => {
+      const userAnswer = answers.find(
+        (a: any) => a.questionId === q._id.toString()
+      );
 
-        const correctAnswer = questionMap.get(questionId);
-        const isCorrect = selected === correctAnswer;
+      const selected = userAnswer?.selected || "";
+      const correct = selected === q.answer;
 
-        if (isCorrect) score++;
+      if (correct) score++;
 
-        return {
-          question: questionId,
-          selected,
-          correct: isCorrect,
-        };
-      })
-    );
+      return {
+        question: q._id,
+        selected,
+        correct,
+      };
+    });
 
-    const attempt = new Attempt({
-      student: req.user.sub,
+    // Save attempt
+    const attempt = await Attempt.create({
       quizRoom: quizRoomId,
-      responses: processedResponses,
+      student: studentId,
+      attemptNumber: attemptCount + 1,
+      responses,
+      score,
+      submittedAt: new Date(),
+    });
+
+    return res.status(201).json({
+      message: "Quiz submitted successfully",
+      attemptId: attempt._id,
       score,
     });
-
-    await attempt.save();
-
-    res.status(201).json({
-      message: "Attempt submitted",
-      data: {
-        attemptId: attempt._id,
-        score,
-      },
-    });
-
-  } catch (err) {
-    console.error(err);
+  } catch (error) {
+    console.error(error);
     res.status(500).json({ message: "Failed to submit attempt" });
   }
 };
@@ -90,19 +78,16 @@ export const createAttempt = async (req: AuthRequest, res: Response) => {
 // /api/v1/attempts/room/:roomId
 export const getAttemptsByRoom = async (req: Request, res: Response) => {
   try {
-    const roomId = req.params.roomId;
+    const { roomId } = req.params;
 
     const attempts = await Attempt.find({ quizRoom: roomId })
-      .populate("student", "name email")
-      .sort({ score: -1 });
+      .populate("student", "name")
+      .sort({ score: -1, submittedAt: 1 });
 
-    res.status(200).json({
-      message: "Attempts fetched",
-      data: attempts,
-    });
-
-  } catch (err) {
-    res.status(500).json({ message: "Failed to fetch attempts" });
+    return res.status(200).json(attempts);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Failed to fetch leaderboard" });
   }
 };
 
@@ -132,23 +117,45 @@ export const getMyAttempts = async (req: AuthRequest, res: Response) => {
 // /api/v1/attempts/:id
 export const getAttemptById = async (req: Request, res: Response) => {
   try {
-    const attempt = await Attempt.findById(req.params.id)
-      .populate("student", "name email")
+    const { id } = req.params;
+
+    const attempt = await Attempt.findById(id)
+      .populate("student", "name")
       .populate({
         path: "quizRoom",
-        populate: { path: "quiz" },
-      })
-      .populate("responses.question");
+        populate: {
+          path: "quiz",
+        },
+      });
 
-    if (!attempt)
+    if (!attempt) {
       return res.status(404).json({ message: "Attempt not found" });
+    }
 
-    res.status(200).json({
-      message: "Attempt fetched",
-      data: attempt,
+    const quiz: any = (attempt.quizRoom as any).quiz;
+
+    const detailedResponses = attempt.responses.map((r: any) => {
+      const question = quiz.questions.find(
+        (q: any) => q._id.toString() === r.question.toString()
+      );
+
+      return {
+        question: question.question,
+        options: question.options,
+        correctAnswer: question.answer,
+        selectedAnswer: r.selected,
+        correct: r.correct,
+      };
     });
 
-  } catch (err) {
+    return res.status(200).json({
+      student: (attempt.student as any).name,
+      score: attempt.score,
+      submittedAt: attempt.submittedAt,
+      responses: detailedResponses,
+    });
+  } catch (error) {
+    console.error(error);
     res.status(500).json({ message: "Failed to fetch attempt" });
   }
 };

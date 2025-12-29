@@ -10,6 +10,8 @@ import {
   getRoomByCode,
   updateRoom,
   deleteRoom,
+  startQuiz,
+  closeRoom
 } from "../controllers/quizRoom.controller";
 
 const router = Router();
@@ -34,7 +36,13 @@ router.get(
 );
 
 // /api/v1/rooms/code/:roomCode
-router.get("/code/:roomCode", getRoomByCode);
+router.get(
+  "/code/:roomCode",
+  authenticate,
+  requireRole([Role.STUDENT, Role.LECTURER, Role.ADMIN]),
+  getRoomByCode
+);
+
 
 // /api/v1/rooms/update/:id
 router.put(
@@ -50,6 +58,19 @@ router.delete(
   authenticate,
   requireRole([Role.LECTURER, Role.ADMIN]),
   deleteRoom
+);
+
+router.post(
+  "/:roomId/start",
+  authenticate,
+  startQuiz
+);
+
+router.put(
+  "/:roomId/close",
+  authenticate,
+  requireRole([Role.LECTURER, Role.ADMIN]),
+  closeRoom
 );
 
 export default router;

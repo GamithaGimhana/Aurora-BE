@@ -6,6 +6,9 @@ export interface IQuizRoom extends Document {
   roomCode: string;
   lecturer: mongoose.Types.ObjectId;
   timeLimit: number; // minutes
+  maxAttempts: number;   
+  startsAt?: Date;  
+  endsAt?: Date;
   active: boolean;
   createdAt?: Date;
   updatedAt?: Date;
@@ -17,6 +20,9 @@ const quizRoomSchema = new Schema<IQuizRoom>(
     roomCode: { type: String, required: true, unique: true },
     lecturer: { type: Schema.Types.ObjectId, ref: "User", required: true },
     timeLimit: { type: Number, required: true },
+    maxAttempts: { type: Number, default: 1 },
+    startsAt: { type: Date },
+    endsAt: { type: Date },
     active: { type: Boolean, default: true }
   },
   { timestamps: true }
