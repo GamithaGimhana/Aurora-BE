@@ -15,49 +15,56 @@ export interface IAttempt extends Document {
   submittedAt: Date;
 }
 
-const AttemptSchema = new Schema<IAttempt>({
-  quizRoom: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "QuizRoom",
-    required: true,
-  },
-  student: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "User",
-    required: true,
-  },
-
-  attemptNumber: {
-    type: Number,
-    required: true,
-  },
-
-  responses: [
-    {
-      question: {
-        type: mongoose.Schema.Types.ObjectId,
-        required: true,
-      },
-      selected: {
-        type: String,
-        required: true,
-      },
-      correct: {
-        type: Boolean,
-        required: true,
-      },
+const AttemptSchema = new Schema<IAttempt>(
+  {
+    quizRoom: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "QuizRoom",
+      required: true,
     },
-  ],
 
-  score: {
-    type: Number,
-    required: true,
-  },
+    student: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
 
-  submittedAt: {
-    type: Date,
-    default: Date.now,
+    attemptNumber: {
+      type: Number,
+      required: true,
+    },
+
+    responses: [
+      {
+        question: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Question",
+          required: true,
+        },
+        selected: {
+          type: String,
+          required: true,
+        },
+        correct: {
+          type: Boolean,
+          required: true,
+        },
+      },
+    ],
+
+    score: {
+      type: Number,
+      required: true,
+    },
+
+    submittedAt: {
+      type: Date,
+      default: Date.now,
+    },
   },
-});
+  { timestamps: true }
+);
+
+AttemptSchema.index({ quizRoom: 1, student: 1 });
 
 export default mongoose.model<IAttempt>("Attempt", AttemptSchema);

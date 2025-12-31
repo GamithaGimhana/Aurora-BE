@@ -1,30 +1,42 @@
-import mongoose, { Document, Schema } from "mongoose";
+import mongoose, { Schema, Document, Types } from "mongoose";
 
 export interface IQuestion extends Document {
-  _id: mongoose.Types.ObjectId;
   question: string;
   options: string[];
   answer: string;
-  explanation?: string;
-  topic: string;
-  user: mongoose.Types.ObjectId;
+  topic?: string;
+  createdBy: Types.ObjectId;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
-const questionSchema = new Schema<IQuestion>(
+const QuestionSchema = new Schema<IQuestion>(
   {
-    question: { type: String, required: true },
-    options: { type: [String], required: true },
-    answer: { type: String, required: true },
-    explanation: { type: String },
-    topic: { type: String, required: true },
-    user: {
-      type: mongoose.Schema.Types.ObjectId,
+    question: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    options: {
+      type: [String],
+      required: true,
+      validate: [(v: string[]) => v.length >= 2, "At least two options required"],
+    },
+    answer: {
+      type: String,
+      required: true,
+    },
+    topic: {
+      type: String,
+    },
+    createdBy: {
+      type: Schema.Types.ObjectId,
       ref: "User",
-      required: true
-    }
+      required: true,
+      index: true,
+    },
   },
   { timestamps: true }
 );
 
-
-export default mongoose.model<IQuestion>("Question", questionSchema);
+export default mongoose.model<IQuestion>("Question", QuestionSchema);

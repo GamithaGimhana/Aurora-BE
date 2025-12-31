@@ -10,10 +10,10 @@ export const getLeaderboard = async (req: Request, res: Response) => {
     const { roomId } = req.params;
 
     const leaderboard = await Attempt.find({
-      room: roomId,
+      quizRoom: roomId,
       submittedAt: { $ne: null },
     })
-      .populate("user", "name email")
+      .populate("student", "name email")
       .sort({ score: -1, submittedAt: 1 });
 
     res.status(200).json({

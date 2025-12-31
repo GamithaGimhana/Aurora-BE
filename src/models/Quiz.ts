@@ -1,59 +1,55 @@
-import mongoose, { Document, Schema } from "mongoose";
+import mongoose, { Schema, Document, Types } from "mongoose";
 
-interface IQuestion {
-  question: string;
-  options: string[];
-  answer: string;
-}
+export type QuizDifficulty = "EASY" | "MEDIUM" | "HARD";
 
 export interface IQuiz extends Document {
   title: string;
   description?: string;
-  topic?: string;
-  difficulty?: "EASY" | "MEDIUM" | "HARD";
-  user: mongoose.Types.ObjectId;
-  questions: IQuestion[];
-  createdAt?: Date;
-  updatedAt?: Date;
+  difficulty: QuizDifficulty;
+  questions: Types.ObjectId[];
+  createdBy: Types.ObjectId;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
-const questionSchema = new Schema<IQuestion>(
+const QuizSchema = new Schema<IQuiz>(
   {
-    question: { type: String, required: true },
-    options: {
-      type: [String],
+    title: {
+      type: String,
       required: true,
-      validate: {
-        validator: (v: string[]) => v.length >= 2,
-        message: "At least two options are required",
-      },
+      trim: true,
     },
-    answer: { type: String, required: true },
-  },
-  { _id: false } // important: no separate _id per question
-);
 
-const quizSchema = new Schema<IQuiz>(
-  {
-    title: { type: String, required: true },
-    description: { type: String },
-    topic: { type: String },
+    description: {
+      type: String,
+      trim: true,
+    },
+
     difficulty: {
       type: String,
       enum: ["EASY", "MEDIUM", "HARD"],
       default: "EASY",
-    },
-    user: { type: Schema.Types.ObjectId, ref: "User", required: true },
-    questions: {
-      type: [questionSchema],
       required: true,
-      validate: {
-        validator: (v: IQuestion[]) => v.length > 0,
-        message: "Quiz must contain at least one question",
+    },
+
+    questions: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: "Question",
+        required: true,
       },
+    ],
+
+    createdBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true,
     },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+  }
 );
 
-export default mongoose.model<IQuiz>("Quiz", quizSchema);
+export default mongoose.model<IQuiz>("Quiz", QuizSchema);

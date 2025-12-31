@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import Attempt from "../models/Attempt";
 import QuizRoom from "../models/QuizRoom";
-import Quiz from "../models/Quiz";
+import mongoose from "mongoose";
 import Question from "../models/Question";
 
 export const createAttempt = async (req: any, res: Response) => {
@@ -11,7 +11,13 @@ export const createAttempt = async (req: any, res: Response) => {
     const studentId = req.user.sub;
 
     // Validate quiz room
-    const room = await QuizRoom.findById(quizRoomId).populate("quiz");
+    // const room = await QuizRoom.findById(quizRoomId).populate("quiz");
+    const room = await QuizRoom.findById(quizRoomId).populate({
+      path: "quiz",
+      populate: {
+        path: "questions",
+      },
+    });
 
     if (!room || !room.active) {
       return res.status(404).json({ message: "Quiz room not active" });
@@ -80,7 +86,11 @@ export const getAttemptsByRoom = async (req: Request, res: Response) => {
   try {
     const { roomId } = req.params;
 
-    const attempts = await Attempt.find({ quizRoom: roomId })
+    // const attempts = await Attempt.find({ quizRoom: roomId })
+    const attempts = await Attempt.find({
+      quizRoom: roomId,
+      submittedAt: { $ne: null },
+    })
       .populate("student", "name")
       .sort({ score: -1, submittedAt: 1 });
 
@@ -175,5 +185,49 @@ export const deleteAttempt = async (req: AuthRequest, res: Response) => {
 
   } catch (err) {
     res.status(500).json({ message: "Failed to delete attempt" });
+  }
+};
+
+export const submitAttempt = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id: attemptId } = req.params;
+    const userId = req.user!.sub;
+    const answers: { questionId: string; selected: string }[] = req.body.answers;
+
+    const attempt = await Attempt.findById(attemptId);
+    if (!attempt) return res.status(404).json({ message: "Attempt not found" });
+
+    // Ensure same student
+    if (attempt.student.toString() !== userId) {
+      return res.status(403).json({ message: "Not allowed to submit this attempt" });
+    }
+
+    // Load the related questions
+    const questionIds = answers.map((a) => a.questionId);
+    const questions = await Question.find({ _id: { $in: questionIds } });
+
+    let score = 0;
+    const responses = answers.map((a) => {
+      const q = questions.find((qq) => qq._id.toString() === a.questionId);
+      const correct = !!q && q.answer === a.selected;
+
+      if (correct) score += 1;
+
+      return {
+        question: new mongoose.Types.ObjectId(a.questionId), // ✅ FIX
+        selected: a.selected,
+        correct,
+      };
+    });
+
+    attempt.responses = responses;
+    attempt.score = score;
+    attempt.submittedAt = new Date();
+    await attempt.save();
+
+    return res.json({ attempt });
+  } catch (err) {
+    console.error("submitAttempt error", err);
+    return res.status(500).json({ message: "Server error" });
   }
 };

@@ -1,169 +1,96 @@
 import { Request, Response } from "express";
-import { AuthRequest } from "../middlewares/auth.middleware";
+import { Types } from "mongoose";
 import Quiz from "../models/Quiz";
 import Question from "../models/Question";
+import { AuthRequest } from "../middlewares/auth.middleware";
 
-// /api/v1/quizzes/create
 export const createQuiz = async (req: AuthRequest, res: Response) => {
-  if (!req.user) return res.status(401).json({ message: "Unauthorized" });
-
-  const { title, description, questions, topic, difficulty } = req.body;
-
-  if (!title || !questions || !Array.isArray(questions) || questions.length === 0) {
-    return res.status(400).json({ message: "Title and questions are required" });
-  }
-
-  const newQuiz = new Quiz({
-    title,
-    description,
-    topic,
-    difficulty,
-    questions, 
-    user: req.user.sub,
-  });
-
-  await newQuiz.save();
-
-  res.status(201).json({
-    message: "Quiz created successfully",
-    data: newQuiz,
-  });
-};
-
-// /api/v1/quizzes?page=1&limit=10
-export const getAllQuizzes = async (req: Request, res: Response) => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 10;
-    const skip = (page - 1) * limit;
+    const { title, description, difficulty, questions, selectedQuestions } = req.body;
 
-    const quizzes = await Quiz.find()
-      .populate("user", "name email")
-      .populate("questions")
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit);
+    if (!title || (!questions?.length && !selectedQuestions?.length)) {
+      return res.status(400).json({ message: "Invalid quiz data" });
+    }
 
-    const total = await Quiz.countDocuments();
+    let questionIds: Types.ObjectId[] = [];
 
-    res.status(200).json({
-      message: "Quizzes fetched successfully",
-      data: quizzes,
-      totalPages: Math.ceil(total / limit),
-      totalCount: total,
-      page,
+    // Create inline questions
+    if (questions?.length) {
+      const created = await Question.insertMany(
+        questions.map((q: any) => ({
+          ...q,
+          createdBy: new Types.ObjectId(req.user!.sub),
+        }))
+      );
+
+      questionIds.push(...created.map((q) => q._id));
+    }
+
+    // Attach existing question bank questions
+    if (selectedQuestions?.length) {
+      questionIds.push(
+        ...selectedQuestions.map((id: string) => new Types.ObjectId(id))
+      );
+    }
+
+    // Create quiz
+    const quiz = await Quiz.create({
+      title,
+      description,
+      difficulty,
+      questions: questionIds,
+      createdBy: new Types.ObjectId(req.user!.sub),
     });
 
+    return res.status(201).json({ data: quiz });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Failed to fetch quizzes" });
+    console.error("createQuiz", err);
+    return res.status(500).json({ message: "Server error" });
   }
 };
 
-// /api/v1/quizzes/me
+/**
+ * GET /api/v1/quizzes/me
+ */
 export const getMyQuizzes = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user) return res.status(401).json({ message: "Unauthorized" });
+    const quizzes = await Quiz.find({ createdBy: req.user!.sub }).populate("questions");
 
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 10;
-    const skip = (page - 1) * limit;
-
-    const quizzes = await Quiz.find({ user: req.user.sub })
-      .populate("questions")
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit);
-
-    const total = await Quiz.countDocuments({ user: req.user.sub });
-
-    res.status(200).json({
-      message: "Your quizzes fetched successfully",
-      data: quizzes,
-      totalPages: Math.ceil(total / limit),
-      totalCount: total,
-      page,
-    });
-
+    return res.json({ data: quizzes });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Failed to fetch your quizzes" });
+    return res.status(500).json({ message: "Server error" });
   }
 };
 
-// /api/v1/quizzes/:id
+/**
+ * GET /api/v1/quizzes/:id
+ */
 export const getQuizById = async (req: Request, res: Response) => {
   try {
-    const quiz = await Quiz.findById(req.params.id)
-      .populate("questions")
-      .populate("user", "name email");
+    const quiz = await Quiz.findById(req.params.id).populate("questions");
+    if (!quiz) return res.status(404).json({ message: "Quiz not found" });
 
-    if (!quiz) {
-      return res.status(404).json({ message: "Quiz not found" });
-    }
-
-    res.status(200).json({
-      message: "Quiz fetched successfully",
-      data: quiz,
-    });
-
+    return res.json({ data: quiz });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Failed to fetch quiz" });
+    return res.status(500).json({ message: "Server error" });
   }
 };
 
-// /api/v1/quizzes/update/:id
-export const updateQuiz = async (req: AuthRequest, res: Response) => {
-  try {
-    if (!req.user) return res.status(401).json({ message: "Unauthorized" });
-
-    const updated = await Quiz.findOneAndUpdate(
-      { _id: req.params.id, user: req.user.sub },
-      req.body,
-      { new: true }
-    );
-
-    if (!updated) {
-      return res.status(404).json({
-        message: "Quiz not found or you don't have permission",
-      });
-    }
-
-    res.status(200).json({
-      message: "Quiz updated successfully",
-      data: updated,
-    });
-
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Failed to update quiz" });
-  }
-};
-
-// /api/v1/quizzes/delete/:id
+/**
+ * DELETE /api/v1/quizzes/:id
+ */
 export const deleteQuiz = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user) return res.status(401).json({ message: "Unauthorized" });
+    const quiz = await Quiz.findById(req.params.id);
+    if (!quiz) return res.status(404).json({ message: "Quiz not found" });
 
-    const deleted = await Quiz.findOneAndDelete({
-      _id: req.params.id,
-      user: req.user.sub,
-    });
-
-    if (!deleted) {
-      return res.status(404).json({
-        message: "Quiz not found or access denied",
-      });
+    if (quiz.createdBy.toString() !== req.user!.sub) {
+      return res.status(403).json({ message: "Forbidden" });
     }
 
-    res.status(200).json({
-      message: "Quiz deleted successfully",
-      data: deleted,
-    });
-
+    await quiz.deleteOne();
+    return res.json({ data: true });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Failed to delete quiz" });
+    return res.status(500).json({ message: "Server error" });
   }
 };
