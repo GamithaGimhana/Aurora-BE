@@ -7,6 +7,51 @@ import Quiz from "../models/Quiz";
 import { AuthRequest } from "../middlewares/auth.middleware";
 
 /**
+ * POST /api/v1/rooms/create
+ * Lecturer/Admin creates a quiz room
+ */
+export const createQuizRoom = async (req: AuthRequest, res: Response) => {
+  try {
+    const {
+      quizId,
+      timeLimit,
+      maxAttempts,
+      startsAt,
+      endsAt,
+    } = req.body;
+
+    if (!quizId || !timeLimit) {
+      return res.status(400).json({ message: "Quiz and time limit are required" });
+    }
+
+    // Ensure quiz exists
+    const quiz = await Quiz.findById(quizId);
+    if (!quiz) {
+      return res.status(404).json({ message: "Quiz not found" });
+    }
+
+    // Generate simple room code
+    const roomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+
+    const room = await QuizRoom.create({
+      quiz: quiz._id,
+      lecturer: req.user!.sub,
+      roomCode,
+      timeLimit,
+      maxAttempts: maxAttempts ?? 1,
+      startsAt,
+      endsAt,
+      active: true,
+    });
+
+    return res.status(201).json({ data: room });
+  } catch (err) {
+    console.error("createQuizRoom error", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+/**
  * POST /api/v1/rooms/:roomId/start
  * Creates a new Attempt for the authenticated student and returns:
  * { attempt, quiz, endsAt }
@@ -68,3 +113,26 @@ export const getMyRooms = async (req: AuthRequest, res: Response) => {
   const rooms = await QuizRoom.find({ lecturer: req.user!.sub });
   res.json({ data: rooms });
 };
+
+/**
+ * GET /api/v1/rooms/:roomId
+ * Student / Lecturer view room details
+ */
+export const getRoomById = async (req: AuthRequest, res: Response) => {
+  try {
+    const room = await QuizRoom.findById(req.params.roomId).populate({
+      path: "quiz",
+      populate: { path: "questions" },
+    });
+
+    if (!room) {
+      return res.status(404).json({ message: "Room not found" });
+    }
+
+    return res.json({ data: room });
+  } catch (err) {
+    console.error("getRoomById error", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+

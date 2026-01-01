@@ -5,6 +5,7 @@ import {
   getMyQuestions,
   getQuestionById,
   deleteQuestion,
+  getAllQuestions,
 } from "../controllers/question.controller";
 import { requireRole } from "../middlewares/role.middleware";
 import { Role } from "../models/User";
@@ -15,5 +16,6 @@ router.post("/create", authenticate, requireRole([Role.LECTURER, Role.ADMIN]), c
 router.get("/me", authenticate, getMyQuestions);
 router.get("/:id", authenticate, getQuestionById);
 router.delete("/:id", authenticate, deleteQuestion);
+router.get("/", authenticate, getAllQuestions);
 
 export default router;

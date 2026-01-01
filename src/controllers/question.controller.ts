@@ -75,3 +75,16 @@ export const deleteQuestion = async (req: AuthRequest, res: Response) => {
     return res.status(500).json({ message: "Server error" });
   }
 };
+
+/**
+ * GET /api/v1/questions
+ * Student / Lecturer / Admin
+ */
+export const getAllQuestions = async (_req: Request, res: Response) => {
+  try {
+    const questions = await Question.find().sort({ createdAt: -1 });
+    return res.json({ data: questions });
+  } catch (err) {
+    return res.status(500).json({ message: "Server error" });
+  }
+};
