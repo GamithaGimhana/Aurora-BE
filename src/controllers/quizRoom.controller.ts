@@ -136,3 +136,34 @@ export const getRoomById = async (req: AuthRequest, res: Response) => {
   }
 };
 
+/**
+ * POST /api/v1/rooms/join
+ * Student joins a room using roomCode
+ */
+export const joinRoomByCode = async (req: AuthRequest, res: Response) => {
+  try {
+    const { roomCode } = req.body;
+
+    if (!roomCode) {
+      return res.status(400).json({ message: "Room code is required" });
+    }
+
+    const room = await QuizRoom.findOne({
+      roomCode: roomCode.toUpperCase(),
+      active: true,
+    });
+
+    if (!room) {
+      return res.status(404).json({ message: "Invalid or inactive room code" });
+    }
+
+    return res.json({
+      data: {
+        roomId: room._id,
+      },
+    });
+  } catch (err) {
+    console.error("joinRoomByCode error", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};

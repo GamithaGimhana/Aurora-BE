@@ -4,20 +4,25 @@ import { requireRole } from "../middlewares/role.middleware";
 import { Role } from "../models/User";
 
 import {
-  createAttempt,
+  // createAttempt,
   getAttemptsByRoom,
   getMyAttempts,
   getAttemptById,
-  deleteAttempt
+  deleteAttempt,
+  submitAttempt,
 } from "../controllers/attempt.controller";
 
 const router = Router();
 
 // Students submit attempt
-router.post("/create", authenticate, requireRole([Role.STUDENT]), createAttempt);
+// router.post("/create", authenticate, requireRole([Role.STUDENT]), createAttempt);
 
 // Leaderboard for a room
-router.get("/room/:roomId", authenticate, getAttemptsByRoom);
+router.get(
+  "/room/:roomId",
+  authenticate,
+  getAttemptsByRoom
+);
 
 // Student's own attempts
 router.get("/me", authenticate, requireRole([Role.STUDENT]), getMyAttempts);
@@ -32,5 +37,7 @@ router.delete(
   requireRole([Role.LECTURER, Role.ADMIN]),
   deleteAttempt
 );
+
+router.post("/:id/submit", authenticate, submitAttempt);
 
 export default router;

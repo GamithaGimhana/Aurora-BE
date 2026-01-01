@@ -7,6 +7,7 @@ import {
   startQuiz,
   getMyRooms,
   getRoomById,
+  joinRoomByCode,
 } from "../controllers/quizRoom.controller";
 
 const router = Router();
@@ -21,7 +22,7 @@ router.post(
 router.post(
   "/:roomId/start",
   authenticate,
-  requireRole([Role.STUDENT]),
+  requireRole([Role.STUDENT, Role.LECTURER, Role.ADMIN]),
   startQuiz
 );
 
@@ -36,6 +37,12 @@ router.get(
   "/:roomId", 
   authenticate, 
   getRoomById
+);
+
+router.post(
+  "/join", 
+  authenticate,
+  joinRoomByCode
 );
 
 export default router;

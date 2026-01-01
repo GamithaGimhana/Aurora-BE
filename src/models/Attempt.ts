@@ -12,8 +12,12 @@ export interface IAttempt extends Document {
   }[];
 
   score: number;
-  submittedAt: Date;
+  submittedAt: Date | null;
+
+  createdAt: Date;
+  updatedAt: Date;
 }
+
 
 const AttemptSchema = new Schema<IAttempt>(
   {
@@ -59,7 +63,7 @@ const AttemptSchema = new Schema<IAttempt>(
 
     submittedAt: {
       type: Date,
-      default: Date.now,
+      default: null,
     },
   },
   { timestamps: true }
