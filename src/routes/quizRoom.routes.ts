@@ -8,6 +8,7 @@ import {
   getMyRooms,
   getRoomById,
   joinRoomByCode,
+  toggleRoomActive
 } from "../controllers/quizRoom.controller";
 
 const router = Router();
@@ -43,6 +44,13 @@ router.post(
   "/join", 
   authenticate,
   joinRoomByCode
+);
+
+router.patch(
+  "/:roomId/toggle",
+  authenticate,
+  requireRole([Role.LECTURER, Role.ADMIN]),
+  toggleRoomActive
 );
 
 export default router;

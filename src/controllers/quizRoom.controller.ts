@@ -2,9 +2,9 @@
 import { Request, Response } from "express";
 import QuizRoom from "../models/QuizRoom";
 import Attempt from "../models/Attempt";
-import Question from "../models/Question";
 import Quiz from "../models/Quiz";
 import { AuthRequest } from "../middlewares/auth.middleware";
+import { Role } from "../models/User";
 
 /**
  * POST /api/v1/rooms/create
@@ -68,6 +68,12 @@ export const startQuiz = async (req: AuthRequest, res: Response) => {
 
     if (!room || !room.active) {
       return res.status(404).json({ message: "Room not found or inactive" });
+    }
+
+    const existing = await Attempt.findOne({ student: userId, quizRoom: roomId });
+
+    if (existing) {
+      return res.json(existing); // resume on refresh
     }
 
     // If startsAt / endsAt logic exists, enforce it
@@ -164,6 +170,36 @@ export const joinRoomByCode = async (req: AuthRequest, res: Response) => {
     });
   } catch (err) {
     console.error("joinRoomByCode error", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+/**
+ * PATCH /api/v1/rooms/:roomId/toggle
+ * Lock / unlock a quiz room
+ */
+export const toggleRoomActive = async (req: AuthRequest, res: Response) => {
+  try {
+    const room = await QuizRoom.findById(req.params.roomId);
+
+    if (!room) {
+      return res.status(404).json({ message: "Room not found" });
+    }
+
+    // Only owner lecturer can toggle
+    if ( room.lecturer.toString() !== req.user!.sub && !req.user!.role.includes(Role.ADMIN)) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    room.active = !room.active;
+    await room.save();
+
+    return res.json({
+      message: `Room ${room.active ? "unlocked" : "locked"}`,
+      active: room.active,
+    });
+  } catch (err) {
+    console.error("toggleRoomActive error", err);
     return res.status(500).json({ message: "Server error" });
   }
 };
