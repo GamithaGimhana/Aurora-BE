@@ -12,6 +12,7 @@ import quizRoomRoutes from "./routes/quizRoom.routes";
 import attemptRoutes from "./routes/attempt.routes";
 import { createDefaultAdmin } from "./config/createAdmin";
 import aiRoutes from "./routes/ai.routes";
+import adminRoutes from "./routes/admin.routes";
 
 dotenv.config();
 
@@ -42,6 +43,7 @@ app.use('/api/v1/quizzes', quizRoutes);
 app.use('/api/v1/rooms', quizRoomRoutes);
 app.use('/api/v1/attempts', attemptRoutes);
 app.use('/api/v1/ai', aiRoutes);
+app.use("/api/v1/admin", adminRoutes);
 
 // Test route
 app.get("/", (req, res) => {
