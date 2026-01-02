@@ -69,6 +69,6 @@ const AttemptSchema = new Schema<IAttempt>(
   { timestamps: true }
 );
 
-AttemptSchema.index({ student: 1, room: 1 }, { unique: true });
+AttemptSchema.index({ student: 1, quizRoom: 1, attemptNumber: 1 }, { unique: true });
 
 export default mongoose.model<IAttempt>("Attempt", AttemptSchema);

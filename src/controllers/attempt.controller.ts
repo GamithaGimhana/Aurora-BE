@@ -1,6 +1,53 @@
 import { Request, Response } from "express";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import Attempt from "../models/Attempt";
+import QuizRoom from "../models/QuizRoom";
+import Quiz from "../models/Quiz";
+
+export const createAttempt = async (req: AuthRequest, res: Response) => {
+  const { roomId } = req.body;
+  const studentId = req.user!.sub;
+
+  const room = await QuizRoom.findById(roomId);
+  if (!room) return res.status(404).json({ message: "Room not found" });
+
+  if (!room.active)
+    return res.status(400).json({ message: "Room inactive" });
+
+  const now = new Date();
+
+  if (room.startsAt && now < room.startsAt)
+    return res.status(400).json({ message: "Quiz not started yet" });
+
+  if (room.endsAt && now > room.endsAt)
+    return res.status(400).json({ message: "Quiz already ended" });
+
+  const attemptCount = await Attempt.countDocuments({
+    student: studentId,
+    quizRoom: roomId
+  });
+
+  if (attemptCount >= room.maxAttempts) {
+    return res.status(403).json({ message: "Max attempts reached" });
+  }
+
+  const quiz = await Quiz.findById(room.quiz).populate("questions");
+
+  const attempt = await Attempt.create({
+    quizRoom: roomId,
+    student: studentId,
+    attemptNumber: attemptCount + 1,
+    responses: quiz!.questions.map((q: any) => ({
+      question: q._id,
+      selected: "",
+      correct: false
+    })),
+    score: 0,
+    submittedAt: null
+  });
+
+  res.status(201).json(attempt);
+};
 
 // GET /api/v1/attempts/room/:roomId
 export const getAttemptsByRoom = async (req: Request, res: Response) => {
@@ -106,77 +153,36 @@ export const deleteAttempt = async (req: AuthRequest, res: Response) => {
 };
 
 export const submitAttempt = async (req: AuthRequest, res: Response) => {
-  try {
-    const attemptId = req.params.id;
-    const userId = req.user!.sub;
-    const answers: { questionId: string; selected: string }[] = req.body.answers;
+  const attempt = await Attempt.findById(req.params.id)
+    .populate("quizRoom")
+    .populate("responses.question");
 
-    const attempt = await Attempt.findById(attemptId).populate({
-      path: "quizRoom",
-      populate: {
-        path: "quiz",
-        populate: { path: "questions" },
-      },
-    });
+  if (!attempt)
+    return res.status(404).json({ message: "Attempt not found" });
 
-    if (!attempt) {
-      return res.status(404).json({ message: "Attempt not found" });
+  if (attempt.submittedAt)
+    return res.status(400).json({ message: "Already submitted" });
+
+  const room = attempt.quizRoom as any;
+  if (!room.active)
+    return res.status(400).json({ message: "Room inactive" });
+
+  let score = 0;
+
+  attempt.responses.forEach((r: any) => {
+    if (r.selected === r.question.answer) {
+      r.correct = true;
+      score++;
     }
+  });
 
-    if (attempt.student.toString() !== userId) {
-      return res.status(403).json({ message: "Forbidden" });
-    }
+  attempt.score = score;
+  attempt.submittedAt = new Date();
 
-    if (attempt.submittedAt) {
-      return res.status(400).json({ message: "Attempt already submitted" });
-    }
+  await attempt.save();
 
-    const room: any = attempt.quizRoom;
-
-    // time limit enforcement
-    if (room.timeLimit) {
-      const startedAt = attempt.createdAt.getTime();
-      const endsAt = startedAt + room.timeLimit * 60 * 1000;
-      if (Date.now() > endsAt) {
-        return res.status(403).json({ message: "Time expired" });
-      }
-    }
-
-    const questions: any[] = room.quiz.questions;
-
-    let score = 0;
-
-    const responses = questions.map((q) => {
-      const userAnswer = answers.find(
-        (a) => a.questionId === q._id.toString()
-      );
-
-      const selected = userAnswer?.selected ?? "";
-      const correct = selected === q.answer;
-
-      if (correct) score++;
-
-      return {
-        question: q._id,
-        selected,
-        correct,
-      };
-    });
-
-    attempt.responses = responses;
-    attempt.score = score;
-    attempt.submittedAt = new Date();
-    await attempt.save();
-
-    return res.json({
-      message: "Quiz submitted",
-      attemptId: attempt._id,
-      score,
-      total: questions.length,
-    });
-
-  } catch (err) {
-    console.error("submitAttempt error", err);
-    return res.status(500).json({ message: "Server error" });
-  }
+  res.json({
+    score,
+    total: attempt.responses.length
+  });
 };

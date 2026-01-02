@@ -4,7 +4,7 @@ import { requireRole } from "../middlewares/role.middleware";
 import { Role } from "../models/User";
 
 import {
-  // createAttempt,
+  createAttempt,
   getAttemptsByRoom,
   getMyAttempts,
   getAttemptById,
@@ -14,8 +14,12 @@ import {
 
 const router = Router();
 
-// Students submit attempt
-// router.post("/create", authenticate, requireRole([Role.STUDENT]), createAttempt);
+router.post(
+  "/create",
+  authenticate,
+  requireRole([Role.STUDENT]),
+  createAttempt
+);
 
 // Leaderboard for a room
 router.get(
