@@ -4,52 +4,6 @@ import Attempt from "../models/Attempt";
 import QuizRoom from "../models/QuizRoom";
 import Quiz from "../models/Quiz";
 
-export const createAttempt = async (req: AuthRequest, res: Response) => {
-  const { roomId } = req.body;
-  const studentId = req.user!.sub;
-
-  const room = await QuizRoom.findById(roomId);
-  if (!room) return res.status(404).json({ message: "Room not found" });
-
-  if (!room.active)
-    return res.status(400).json({ message: "Room inactive" });
-
-  const now = new Date();
-
-  if (room.startsAt && now < room.startsAt)
-    return res.status(400).json({ message: "Quiz not started yet" });
-
-  if (room.endsAt && now > room.endsAt)
-    return res.status(400).json({ message: "Quiz already ended" });
-
-  const attemptCount = await Attempt.countDocuments({
-    student: studentId,
-    quizRoom: roomId
-  });
-
-  if (attemptCount >= room.maxAttempts) {
-    return res.status(403).json({ message: "Max attempts reached" });
-  }
-
-  const quiz = await Quiz.findById(room.quiz).populate("questions");
-
-  const attempt = await Attempt.create({
-    quizRoom: roomId,
-    student: studentId,
-    attemptNumber: attemptCount + 1,
-    responses: quiz!.questions.map((q: any) => ({
-      question: q._id,
-      selected: "",
-      correct: false
-    })),
-    score: 0,
-    submittedAt: null
-  });
-
-  res.status(201).json(attempt);
-};
-
-// GET /api/v1/attempts/room/:roomId
 export const getAttemptsByRoom = async (req: Request, res: Response) => {
   try {
     const { roomId } = req.params;
@@ -153,6 +107,8 @@ export const deleteAttempt = async (req: AuthRequest, res: Response) => {
 };
 
 export const submitAttempt = async (req: AuthRequest, res: Response) => {
+  const { answers } = req.body;
+
   const attempt = await Attempt.findById(req.params.id)
     .populate("quizRoom")
     .populate("responses.question");
@@ -167,13 +123,22 @@ export const submitAttempt = async (req: AuthRequest, res: Response) => {
   if (!room.active)
     return res.status(400).json({ message: "Room inactive" });
 
+  const quiz = await Quiz.findById(room.quiz).populate("questions");
+
   let score = 0;
 
-  attempt.responses.forEach((r: any) => {
-    if (r.selected === r.question.answer) {
-      r.correct = true;
-      score++;
-    }
+  attempt.responses = quiz!.questions.map((q: any) => {
+    const found = answers.find((a: any) => a.questionId === q._id.toString());
+    const selected = found?.selected || "";
+
+    const correct = selected === q.answer;
+    if (correct) score++;
+
+    return {
+      question: q._id,
+      selected,
+      correct,
+    };
   });
 
   attempt.score = score;
@@ -183,6 +148,6 @@ export const submitAttempt = async (req: AuthRequest, res: Response) => {
 
   res.json({
     score,
-    total: attempt.responses.length
+    total: attempt.responses.length,
   });
 };

@@ -4,7 +4,6 @@ import { requireRole } from "../middlewares/role.middleware";
 import { Role } from "../models/User";
 
 import {
-  createAttempt,
   getAttemptsByRoom,
   getMyAttempts,
   getAttemptById,
@@ -13,13 +12,6 @@ import {
 } from "../controllers/attempt.controller";
 
 const router = Router();
-
-router.post(
-  "/create",
-  authenticate,
-  requireRole("STUDENT"),
-  createAttempt
-);
 
 // Leaderboard for a room
 router.get(

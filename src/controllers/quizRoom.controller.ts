@@ -85,10 +85,14 @@ export const startQuiz = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: "Room not found or inactive" });
     }
 
-    const existing = await Attempt.findOne({ student: userId, quizRoom: roomId });
+    const existing = await Attempt.findOne({
+      student: userId,
+      quizRoom: roomId,
+      submittedAt: null
+    });
 
     if (existing) {
-      return res.json(existing); // resume on refresh
+      return res.json({ attempt: existing, quiz: room.quiz });
     }
 
     // If startsAt / endsAt logic exists, enforce it
@@ -114,7 +118,6 @@ export const startQuiz = async (req: AuthRequest, res: Response) => {
       quizRoom: room._id,
       student: userId,
       attemptNumber: prevAttempts + 1,
-      responses: [],
       score: 0,
     });
 
