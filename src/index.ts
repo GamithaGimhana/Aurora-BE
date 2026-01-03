@@ -13,6 +13,7 @@ import attemptRoutes from "./routes/attempt.routes";
 import { createDefaultAdmin } from "./config/createAdmin";
 import aiRoutes from "./routes/ai.routes";
 import adminRoutes from "./routes/admin.routes";
+import { authenticate } from "./middlewares/auth.middleware";
 
 dotenv.config();
 
@@ -36,6 +37,10 @@ app.use(cookieParser());
 
 // Routes
 app.use('/api/v1/auth', authRoutes)
+
+app.use(authenticate);
+
+app.use("/api/v1/admin", adminRoutes);
 app.use('/api/v1/notes', noteRoutes);
 app.use('/api/v1/flashcards', flashcardRoutes);
 app.use('/api/v1/questions', questionRoutes);
@@ -43,7 +48,6 @@ app.use('/api/v1/quizzes', quizRoutes);
 app.use('/api/v1/rooms', quizRoomRoutes);
 app.use('/api/v1/attempts', attemptRoutes);
 app.use('/api/v1/ai', aiRoutes);
-app.use("/api/v1/admin", adminRoutes);
 
 // Test route
 app.get("/", (req, res) => {

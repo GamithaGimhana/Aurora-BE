@@ -1,22 +1,27 @@
-import { Response, NextFunction } from "express";
-import { AuthRequest } from "./auth.middleware";
-import { Role } from "../models/User";
+import { Request, Response, NextFunction } from "express";
 
-export const requireRole = (role: Role[]) => {
-  return (req: AuthRequest, res: Response, next: NextFunction) => {
-    if (!req.user) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
+export const requireRole = (...allowedRoles: string[]) => {
+  return (req: any, res: Response, next: NextFunction) => {
+    const userRoles: string[] = req.user?.role || [];
 
-    if (req.user.role.includes(Role.ADMIN)) {
+    // Admin override
+    if (userRoles.includes("ADMIN")) {
       return next();
     }
 
-    const hasRole = role.some(r => req.user!.role.includes(r));
-    if (!hasRole) {
+    // Lecturer inherits Student
+    const expandedRoles = new Set(userRoles);
+    if (userRoles.includes("LECTURER")) {
+      expandedRoles.add("STUDENT");
+    }
+
+    const hasAccess = allowedRoles.some((r) => expandedRoles.has(r));
+
+    if (!hasAccess) {
       return res.status(403).json({
-        message: `Require ${role} role`
-      })
+        success: false,
+        message: "Forbidden: insufficient permissions",
+      });
     }
 
     next();

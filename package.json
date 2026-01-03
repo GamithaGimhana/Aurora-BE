@@ -22,10 +22,12 @@
     "mammoth": "^1.11.0",
     "mongoose": "^9.0.0",
     "multer": "^2.0.2",
+    "openai": "^6.15.0",
     "pdf-parse": "^2.4.5",
     "react-router-dom": "^7.9.6"
   },
   "devDependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@types/bcryptjs": "^2.4.6",
     "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",

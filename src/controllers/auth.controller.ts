@@ -1,10 +1,8 @@
 import { Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-
-import User from "../models/User";
+import User, { Role } from "../models/User";
 import RefreshToken from "../models/RefreshToken";
-
 import { signAccessToken, signRefreshToken } from "../utils/tokens";
 import { AuthRequest } from "../middlewares/auth.middleware";
 
@@ -17,6 +15,10 @@ export const register = async (req: Request, res: Response) => {
 
     if (!name || !email || !password || !role) {
       return res.status(400).json({ message: "All fields are required" });
+    }
+
+    if (role.includes(Role.ADMIN)) {
+      return res.status(403).json({ message: "Admin registration forbidden" });
     }
 
     const exists = await User.findOne({ email });

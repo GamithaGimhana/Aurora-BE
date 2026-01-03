@@ -12,7 +12,7 @@ import { Role } from "../models/User";
 
 const router = Router();
 
-router.post("/create", authenticate, requireRole([Role.LECTURER, Role.ADMIN]), createQuestion);
+router.post("/create", authenticate, requireRole("LECTURER", "ADMIN"), createQuestion);
 router.get("/me", authenticate, getMyQuestions);
 router.get("/:id", authenticate, getQuestionById);
 router.delete("/:id", authenticate, deleteQuestion);

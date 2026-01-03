@@ -16,21 +16,21 @@ const router = Router();
 router.post(
   "/create",
   authenticate,
-  requireRole([Role.LECTURER, Role.ADMIN]),
+  requireRole("LECTURER", "ADMIN"),
   createQuizRoom
 );
 
 router.post(
   "/:roomId/start",
   authenticate,
-  requireRole([Role.STUDENT, Role.LECTURER, Role.ADMIN]),
+  requireRole("STUDENT", "LECTURER", "ADMIN"),
   startQuiz
 );
 
 router.get(
   "/me",
   authenticate,
-  requireRole([Role.LECTURER]),
+  requireRole("LECTURER"),
   getMyRooms
 );
 
@@ -49,7 +49,7 @@ router.post(
 router.patch(
   "/:roomId/toggle",
   authenticate,
-  requireRole([Role.LECTURER, Role.ADMIN]),
+  requireRole("LECTURER", "ADMIN"),
   toggleRoomActive
 );
 

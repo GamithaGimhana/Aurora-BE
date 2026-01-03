@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { authenticate } from "../middlewares/auth.middleware";
 import { requireRole } from "../middlewares/role.middleware";
-import { upload } from "../middlewares/upload.middleware";
+// import { upload } from "../middlewares/upload.middleware";
 import { Role } from "../models/User";
 
 import {
@@ -14,24 +14,24 @@ const router = Router();
 
 // Students & Lecturers can use AI
 router.post(
-  "/generate-notes",
+  "/generate/notes",
   authenticate,
-  requireRole([Role.STUDENT, Role.LECTURER, Role.ADMIN]),
-  upload.single("file"),
+  requireRole("STUDENT", "LECTURER", "ADMIN"),
+  // upload.single("file"),
   generateNotes
 );
 
 router.post(
-  "/generate-flashcards",
+  "/generate/flashcards",
   authenticate,
-  requireRole([Role.STUDENT, Role.LECTURER, Role.ADMIN]),
+  requireRole("STUDENT", "LECTURER", "ADMIN"),
   generateFlashcards
 );
 
 router.post(
-  "/generate-quiz",
+  "/generate/quiz",
   authenticate,
-  requireRole([Role.STUDENT, Role.LECTURER, Role.ADMIN]),
+  requireRole("STUDENT", "LECTURER", "ADMIN"),
   generateQuiz
 );
 

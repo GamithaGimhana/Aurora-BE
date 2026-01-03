@@ -17,7 +17,7 @@ const router = Router();
 router.post(
   "/create",
   authenticate,
-  requireRole([Role.STUDENT]),
+  requireRole("STUDENT"),
   createAttempt
 );
 
@@ -29,7 +29,7 @@ router.get(
 );
 
 // Student's own attempts
-router.get("/me", authenticate, requireRole([Role.STUDENT]), getMyAttempts);
+router.get("/me", authenticate, requireRole("STUDENT"), getMyAttempts);
 
 // Get single attempt
 router.get("/:id", authenticate, getAttemptById);
@@ -38,7 +38,7 @@ router.get("/:id", authenticate, getAttemptById);
 router.delete(
   "/delete/:id",
   authenticate,
-  requireRole([Role.LECTURER, Role.ADMIN]),
+  requireRole("LECTURER", "ADMIN"),
   deleteAttempt
 );
 

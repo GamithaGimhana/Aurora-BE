@@ -1,0 +1,56 @@
+import { Request, Response } from "express";
+import User from "../models/User";
+import Note from "../models/Note";
+import Quiz from "../models/Quiz";
+import QuizRoom from "../models/QuizRoom";
+
+export const getSystemStats = async (_req: Request, res: Response) => {
+  const [users, notes, quizzes, rooms] = await Promise.all([
+    User.countDocuments(),
+    Note.countDocuments(),
+    Quiz.countDocuments(),
+    QuizRoom.countDocuments(),
+  ]);
+
+  res.json({
+    users,
+    notes,
+    quizzes,
+    rooms,
+  });
+};
+
+export const getAllUsers = async (_req: Request, res: Response) => {
+  const users = await User.find().select("-password");
+  res.json({ users });
+};
+
+export const updateUserRole = async (req: Request, res: Response) => {
+  const { role } = req.body;
+
+  if (!["STUDENT", "LECTURER", "ADMIN"].includes(role)) {
+    return res.status(400).json({ message: "Invalid role" });
+  }
+
+  const user = await User.findByIdAndUpdate(
+    req.params.id,
+    { role },
+    { new: true }
+  ).select("-password");
+
+  if (!user) {
+    return res.status(404).json({ message: "User not found" });
+  }
+
+  res.json({ message: "Role updated", user });
+};
+
+export const deleteUser = async (req: Request, res: Response) => {
+  const user = await User.findByIdAndDelete(req.params.id);
+
+  if (!user) {
+    return res.status(404).json({ message: "User not found" });
+  }
+
+  res.json({ message: "User deleted" });
+};
