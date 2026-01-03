@@ -25,6 +25,7 @@ export const getAllUsers = async (_req: Request, res: Response) => {
   res.json({ users });
 };
 
+// backend/src/controllers/admin.controller.ts
 export const updateUserRole = async (req: Request, res: Response) => {
   const { role } = req.body;
 
@@ -34,7 +35,7 @@ export const updateUserRole = async (req: Request, res: Response) => {
 
   const user = await User.findByIdAndUpdate(
     req.params.id,
-    { role },
+    { role: [role] },
     { new: true }
   ).select("-password");
 

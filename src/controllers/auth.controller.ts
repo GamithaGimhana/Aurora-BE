@@ -13,12 +13,14 @@ export const register = async (req: Request, res: Response) => {
   try {
     const { name, email, password, role } = req.body;
 
-    if (!name || !email || !password || !role) {
-      return res.status(400).json({ message: "All fields are required" });
+    const roles = Array.isArray(role) ? role : [role];
+
+    if (roles.includes(Role.ADMIN)) {
+      return res.status(403).json({ message: "Admin registration forbidden" });
     }
 
-    if (role.includes(Role.ADMIN)) {
-      return res.status(403).json({ message: "Admin registration forbidden" });
+    if (!name || !email || !password || !role) {
+      return res.status(400).json({ message: "All fields are required" });
     }
 
     const exists = await User.findOne({ email });
@@ -32,7 +34,7 @@ export const register = async (req: Request, res: Response) => {
       name,
       email,
       password: hashedPassword,
-      role
+      role: roles,
     });
 
     return res.status(201).json({

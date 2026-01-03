@@ -1,27 +1,33 @@
-import mongoose, { Document, Schema } from "mongoose";
+// backend/src/models/User.ts
+import mongoose, { Schema, Document } from "mongoose";
 
 export enum Role {
   STUDENT = "STUDENT",
   LECTURER = "LECTURER",
-  ADMIN = "ADMIN"
+  ADMIN = "ADMIN",
 }
 
 export interface IUser extends Document {
-  _id: mongoose.Types.ObjectId;
   name: string;
   email: string;
   password: string;
   role: Role[];
 }
 
-const userSchema = new Schema<IUser>(
+const UserSchema = new Schema<IUser>(
   {
     name: { type: String, required: true },
-    email: { type: String, required: true, unique: true, lowercase: true },
+    email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
-    role: { type: [String], enum: Object.values(Role), required: true }
+
+    role: {
+      type: [String],
+      enum: Object.values(Role),
+      required: true,
+      default: [Role.STUDENT],
+    },
   },
   { timestamps: true }
 );
 
-export default mongoose.model<IUser>("User", userSchema);
+export default mongoose.model<IUser>("User", UserSchema);

@@ -17,7 +17,7 @@ export interface IQuizRoom extends Document {
 const quizRoomSchema = new Schema<IQuizRoom>(
   {
     quiz: { type: Schema.Types.ObjectId, ref: "Quiz", required: true },
-    roomCode: { type: String, required: true, unique: true },
+    roomCode: { type: String, required: true, unique: true, trim: true, uppercase: true },
     lecturer: { type: Schema.Types.ObjectId, ref: "User", required: true },
     timeLimit: { type: Number, required: true },
     maxAttempts: { type: Number, default: 1 },

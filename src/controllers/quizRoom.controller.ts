@@ -6,56 +6,71 @@ import Quiz from "../models/Quiz";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import { Role } from "../models/User";
 
-/**
- * POST /api/v1/rooms/create
- * Lecturer/Admin creates a quiz room
- */
+const generateRoomCode = async (): Promise<string> => {
+  let code: string;
+  let exists: boolean;
+
+  do {
+    code = Math.random().toString(36).substring(2, 8).toUpperCase();
+    exists = !!(await QuizRoom.exists({ roomCode: code }));
+  } while (exists);
+
+  return code;
+};
+
 export const createQuizRoom = async (req: AuthRequest, res: Response) => {
   try {
-    const {
-      quizId,
-      timeLimit,
-      maxAttempts,
-      startsAt,
-      endsAt,
-    } = req.body;
+    const { quizId, timeLimit, maxAttempts, startsAt, endsAt } = req.body;
 
     if (!quizId || !timeLimit) {
       return res.status(400).json({ message: "Quiz and time limit are required" });
     }
 
-    // Ensure quiz exists
     const quiz = await Quiz.findById(quizId);
     if (!quiz) {
       return res.status(404).json({ message: "Quiz not found" });
     }
 
-    // Generate simple room code
-    const roomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+    let room;
+    let attempts = 0;
+    const MAX_RETRIES = 5;
 
-    const room = await QuizRoom.create({
-      quiz: quiz._id,
-      lecturer: req.user!.sub,
-      roomCode,
-      timeLimit,
-      maxAttempts: maxAttempts ?? 1,
-      startsAt,
-      endsAt,
-      active: true,
-    });
+    while (!room && attempts < MAX_RETRIES) {
+      try {
+        const roomCode = await generateRoomCode();
+
+        room = await QuizRoom.create({
+          quiz: quiz._id,
+          lecturer: req.user!.sub,
+          roomCode,
+          timeLimit,
+          maxAttempts: maxAttempts ?? 1,
+          startsAt,
+          endsAt,
+          active: true,
+        });
+
+      } catch (err: any) {
+        if (err.code === 11000) {
+          attempts++;
+          continue; // retry with new code
+        }
+        throw err;
+      }
+    }
+
+    if (!room) {
+      return res.status(500).json({ message: "Could not generate unique room code" });
+    }
 
     return res.status(201).json({ data: room });
+
   } catch (err) {
     console.error("createQuizRoom error", err);
     return res.status(500).json({ message: "Server error" });
   }
 };
 
-/**
- * POST /api/v1/rooms/:roomId/start
- * Creates a new Attempt for the authenticated student and returns:
- * { attempt, quiz, endsAt }
- */
 export const startQuiz = async (req: AuthRequest, res: Response) => {
   try {
     const { roomId } = req.params;
