@@ -11,7 +11,6 @@ import quizRoutes from "./routes/quiz.routes";
 import quizRoomRoutes from "./routes/quizRoom.routes";
 import attemptRoutes from "./routes/attempt.routes";
 import { createDefaultAdmin } from "./config/createAdmin";
-import aiRoutes from "./routes/ai.routes";
 import adminRoutes from "./routes/admin.routes";
 import { authenticate } from "./middlewares/auth.middleware";
 
@@ -47,7 +46,6 @@ app.use('/api/v1/questions', questionRoutes);
 app.use('/api/v1/quizzes', quizRoutes);
 app.use('/api/v1/rooms', quizRoomRoutes);
 app.use('/api/v1/attempts', attemptRoutes);
-app.use('/api/v1/ai', aiRoutes);
 
 // Test route
 app.get("/", (req, res) => {
