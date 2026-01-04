@@ -92,10 +92,6 @@ index.ts       App entrypoint
 2. Commit and push: `git commit -m "feat: ..."` then `git push origin feature/<name>`
 3. Open a Pull Request
 
-## License
-
-ISC License
-
 ## Author
 
 - Gamitha Gimhana
