@@ -1,11 +1,13 @@
-import { Request, Response } from "express";
+import { Request, Response, NextFunction } from "express";
 import Attempt from "../models/Attempt";
+import { AppError } from "../utils/AppError";
 
-/**
- * GET LEADERBOARD
- * GET /api/v1/attempts/leaderboard/:roomId
- */
-export const getLeaderboard = async (req: Request, res: Response) => {
+// /api/v1/attempts/leaderboard/:roomId
+export const getLeaderboard = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
     const { roomId } = req.params;
 
@@ -21,7 +23,6 @@ export const getLeaderboard = async (req: Request, res: Response) => {
       data: leaderboard,
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Failed to fetch leaderboard" });
+    next(err instanceof AppError ? err : err);
   }
 };

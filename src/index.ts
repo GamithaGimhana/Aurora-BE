@@ -13,6 +13,7 @@ import attemptRoutes from "./routes/attempt.routes";
 import { createDefaultAdmin } from "./config/createAdmin";
 import adminRoutes from "./routes/admin.routes";
 import { authenticate } from "./middlewares/auth.middleware";
+import { errorHandler } from "./middlewares/error.middleware";
 
 dotenv.config();
 
@@ -47,6 +48,8 @@ app.use('/api/v1/questions', questionRoutes);
 app.use('/api/v1/quizzes', quizRoutes);
 app.use('/api/v1/rooms', quizRoomRoutes);
 app.use('/api/v1/attempts', attemptRoutes);
+
+app.use(errorHandler);
 
 // Test route
 app.get("/", (req, res) => {

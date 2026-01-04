@@ -1,15 +1,22 @@
-import { Request, Response } from "express";
+import { Request, Response, NextFunction } from "express";
 import { Types } from "mongoose";
 import Quiz from "../models/Quiz";
 import Question from "../models/Question";
 import { AuthRequest } from "../middlewares/auth.middleware";
+import { AppError } from "../utils/AppError";
 
-export const createQuiz = async (req: AuthRequest, res: Response) => {
+// /api/v1/quizzes/create
+export const createQuiz = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
   try {
-    const { title, description, difficulty, questions, selectedQuestions } = req.body;
+    const { title, description, difficulty, questions, selectedQuestions } =
+      req.body;
 
     if (!title || (!questions?.length && !selectedQuestions?.length)) {
-      return res.status(400).json({ message: "Invalid quiz data" });
+      throw new AppError("Invalid quiz data", 400);
     }
 
     let questionIds: Types.ObjectId[] = [];
@@ -42,55 +49,69 @@ export const createQuiz = async (req: AuthRequest, res: Response) => {
       createdBy: new Types.ObjectId(req.user!.sub),
     });
 
-    return res.status(201).json({ data: quiz });
+    res.status(201).json({ data: quiz });
   } catch (err) {
-    console.error("createQuiz", err);
-    return res.status(500).json({ message: "Server error" });
+    next(err);
   }
 };
 
-/**
- * GET /api/v1/quizzes/me
- */
-export const getMyQuizzes = async (req: AuthRequest, res: Response) => {
+// /api/v1/quizzes/me
+export const getMyQuizzes = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
   try {
-    const quizzes = await Quiz.find({ createdBy: req.user!.sub }).populate("questions");
+    const quizzes = await Quiz.find({
+      createdBy: req.user!.sub,
+    }).populate("questions");
 
-    return res.json({ data: quizzes });
+    res.status(200).json({ data: quizzes });
   } catch (err) {
-    return res.status(500).json({ message: "Server error" });
+    next(err);
   }
 };
 
-/**
- * GET /api/v1/quizzes/:id
- */
-export const getQuizById = async (req: Request, res: Response) => {
+// /api/v1/quizzes/:id
+export const getQuizById = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
     const quiz = await Quiz.findById(req.params.id).populate("questions");
-    if (!quiz) return res.status(404).json({ message: "Quiz not found" });
 
-    return res.json({ data: quiz });
+    if (!quiz) {
+      throw new AppError("Quiz not found", 404);
+    }
+
+    res.status(200).json({ data: quiz });
   } catch (err) {
-    return res.status(500).json({ message: "Server error" });
+    next(err);
   }
 };
 
-/**
- * DELETE /api/v1/quizzes/:id
- */
-export const deleteQuiz = async (req: AuthRequest, res: Response) => {
+// /api/v1/quizzes/delete/:id
+export const deleteQuiz = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
   try {
     const quiz = await Quiz.findById(req.params.id);
-    if (!quiz) return res.status(404).json({ message: "Quiz not found" });
+
+    if (!quiz) {
+      throw new AppError("Quiz not found", 404);
+    }
 
     if (quiz.createdBy.toString() !== req.user!.sub) {
-      return res.status(403).json({ message: "Forbidden" });
+      throw new AppError("Forbidden", 403);
     }
 
     await quiz.deleteOne();
-    return res.json({ data: true });
+
+    res.status(200).json({ data: true });
   } catch (err) {
-    return res.status(500).json({ message: "Server error" });
+    next(err);
   }
 };

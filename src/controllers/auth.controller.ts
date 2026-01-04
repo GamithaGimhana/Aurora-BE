@@ -1,31 +1,36 @@
-import { Request, Response } from "express";
+import { Request, Response, NextFunction } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import User, { Role } from "../models/User";
 import RefreshToken from "../models/RefreshToken";
 import { signAccessToken, signRefreshToken } from "../utils/tokens";
 import { AuthRequest } from "../middlewares/auth.middleware";
+import { AppError } from "../utils/AppError";
 
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET as string;
 
-/* ---------------------------------- REGISTER ---------------------------------- */
-export const register = async (req: Request, res: Response) => {
+// /api/v1/auth/register
+export const register = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
     const { name, email, password, role } = req.body;
 
     const roles = Array.isArray(role) ? role : [role];
 
     if (roles.includes(Role.ADMIN)) {
-      return res.status(403).json({ message: "Admin registration forbidden" });
+      throw new AppError("Admin registration forbidden", 403);
     }
 
     if (!name || !email || !password || !role) {
-      return res.status(400).json({ message: "All fields are required" });
+      throw new AppError("All fields are required", 400);
     }
 
     const exists = await User.findOne({ email });
     if (exists) {
-      return res.status(409).json({ message: "Email already registered" });
+      throw new AppError("Email already registered", 409);
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -37,41 +42,44 @@ export const register = async (req: Request, res: Response) => {
       role: roles,
     });
 
-    return res.status(201).json({
+    res.status(201).json({
       message: "User registered successfully",
       user: {
         id: user._id,
         name: user.name,
         email: user.email,
-        role: user.role
-      }
+        role: user.role,
+      },
     });
-  } catch (error) {
-    console.error("REGISTER ERROR:", error);
-    return res.status(500).json({ message: "Server error" });
+  } catch (err) {
+    next(err);
   }
 };
 
-/* ----------------------------------- LOGIN ----------------------------------- */
-export const login = async (req: Request, res: Response) => {
+// /api/v1/auth/login
+export const login = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
     const { email, password } = req.body;
 
     if (!email || !password) {
-      return res.status(400).json({ message: "Email and password required" });
+      throw new AppError("Email and password required", 400);
     }
 
     const user = await User.findOne({ email });
     if (!user) {
-      return res.status(401).json({ message: "Invalid email or password" });
+      throw new AppError("Invalid email or password", 401);
     }
 
     const match = await bcrypt.compare(password, user.password);
     if (!match) {
-      return res.status(401).json({ message: "Invalid email or password" });
+      throw new AppError("Invalid email or password", 401);
     }
 
-    // Invalidate old refresh tokens (rotation safety)
+    // Invalidate old refresh tokens
     await RefreshToken.deleteMany({ user: user._id });
 
     const accessToken = signAccessToken(user);
@@ -80,38 +88,41 @@ export const login = async (req: Request, res: Response) => {
     await RefreshToken.create({
       user: user._id,
       token: refreshToken,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     });
 
-    return res.status(200).json({
+    res.status(200).json({
       message: "Login successful",
       user: {
         id: user._id,
         name: user.name,
         email: user.email,
-        role: user.role
+        role: user.role,
       },
       accessToken,
-      refreshToken
+      refreshToken,
     });
-  } catch (error) {
-    console.error("LOGIN ERROR:", error);
-    return res.status(500).json({ message: "Server error" });
+  } catch (err) {
+    next(err);
   }
 };
 
-/* ----------------------------- REFRESH TOKEN FLOW ----------------------------- */
-export const handleRefreshToken = async (req: Request, res: Response) => {
+// /api/v1/auth/refresh-token
+export const handleRefreshToken = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
     const { refreshToken } = req.body;
 
     if (!refreshToken) {
-      return res.status(400).json({ message: "Refresh token required" });
+      throw new AppError("Refresh token required", 400);
     }
 
     const storedToken = await RefreshToken.findOne({ token: refreshToken });
     if (!storedToken) {
-      return res.status(403).json({ message: "Invalid refresh token" });
+      throw new AppError("Invalid refresh token", 403);
     }
 
     const payload = jwt.verify(
@@ -121,7 +132,7 @@ export const handleRefreshToken = async (req: Request, res: Response) => {
 
     const user = await User.findById(payload.sub);
     if (!user) {
-      return res.status(401).json({ message: "User not found" });
+      throw new AppError("User not found", 401);
     }
 
     // Rotate refresh token
@@ -133,34 +144,36 @@ export const handleRefreshToken = async (req: Request, res: Response) => {
     await RefreshToken.create({
       user: user._id,
       token: newRefreshToken,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     });
 
-    return res.status(200).json({
+    res.status(200).json({
       accessToken: newAccessToken,
-      refreshToken: newRefreshToken
+      refreshToken: newRefreshToken,
     });
-  } catch (error) {
-    console.error("REFRESH TOKEN ERROR:", error);
-    return res.status(403).json({ message: "Invalid or expired refresh token" });
+  } catch (err) {
+    next(err);
   }
 };
 
-/* ----------------------------------- GET ME ----------------------------------- */
-export const getMe = async (req: AuthRequest, res: Response) => {
+// /api/v1/auth/me
+export const getMe = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
   try {
     if (!req.user) {
-      return res.status(401).json({ message: "Unauthorized" });
+      throw new AppError("Unauthorized", 401);
     }
 
     const user = await User.findById(req.user.sub).select("-password");
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      throw new AppError("User not found", 404);
     }
 
-    return res.status(200).json({ user });
-  } catch (error) {
-    console.error("GET ME ERROR:", error);
-    return res.status(500).json({ message: "Server error" });
+    res.status(200).json({ user });
+  } catch (err) {
+    next(err);
   }
 };

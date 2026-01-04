@@ -1,7 +1,6 @@
 import { Router } from "express";
 import { authenticate } from "../middlewares/auth.middleware";
 import { requireRole } from "../middlewares/role.middleware";
-import { Role } from "../models/User";
 import {
   createQuizRoom,
   startQuiz,

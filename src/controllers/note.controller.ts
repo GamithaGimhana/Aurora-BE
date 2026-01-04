@@ -1,18 +1,23 @@
-import { Request, Response } from "express";
+import { Request, Response, NextFunction } from "express";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import Note from "../models/Note";
+import { AppError } from "../utils/AppError";
 
 // /api/v1/notes/create
-export const createNote = async (req: AuthRequest, res: Response) => {
+export const createNote = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
   try {
     if (!req.user) {
-      return res.status(401).json({ message: "Unauthorized" });
+      throw new AppError("Unauthorized", 401);
     }
 
     const { title, content } = req.body;
 
     if (!title || !content) {
-      return res.status(400).json({ message: "Title and content are required" });
+      throw new AppError("Title and content are required", 400);
     }
 
     const newNote = new Note({
@@ -28,13 +33,16 @@ export const createNote = async (req: AuthRequest, res: Response) => {
       data: newNote,
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Failed to create note" });
+    next(err);
   }
 };
 
 // /api/v1/notes?page=1&limit=10
-export const getAllNotes = async (req: Request, res: Response) => {
+export const getAllNotes = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
@@ -56,15 +64,20 @@ export const getAllNotes = async (req: Request, res: Response) => {
       page,
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Failed to fetch notes" });
+    next(err);
   }
 };
 
 // /api/v1/notes/me
-export const getMyNotes = async (req: AuthRequest, res: Response) => {
+export const getMyNotes = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
   try {
-    if (!req.user) return res.status(401).json({ message: "Unauthorized" });
+    if (!req.user) {
+      throw new AppError("Unauthorized", 401);
+    }
 
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
@@ -85,32 +98,42 @@ export const getMyNotes = async (req: AuthRequest, res: Response) => {
       page,
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Failed to fetch your notes" });
+    next(err);
   }
 };
 
 // /api/v1/notes/:id
-export const getNoteById = async (req: Request, res: Response) => {
+export const getNoteById = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
     const note = await Note.findById(req.params.id);
 
-    if (!note) return res.status(404).json({ message: "Note not found" });
+    if (!note) {
+      throw new AppError("Note not found", 404);
+    }
 
     res.status(200).json({
       message: "Note fetched successfully",
       data: note,
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Failed to get note" });
+    next(err);
   }
 };
 
 // /api/v1/notes/update/:id
-export const updateNote = async (req: AuthRequest, res: Response) => {
+export const updateNote = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
   try {
-    if (!req.user) return res.status(401).json({ message: "Unauthorized" });
+    if (!req.user) {
+      throw new AppError("Unauthorized", 401);
+    }
 
     const updated = await Note.findOneAndUpdate(
       { _id: req.params.id, user: req.user.sub },
@@ -118,38 +141,44 @@ export const updateNote = async (req: AuthRequest, res: Response) => {
       { new: true }
     );
 
-    if (!updated)
-      return res.status(404).json({ message: "Note not found or access denied" });
+    if (!updated) {
+      throw new AppError("Note not found or access denied", 404);
+    }
 
     res.status(200).json({
       message: "Note updated successfully",
       data: updated,
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Failed to update note" });
+    next(err);
   }
 };
 
 // /api/v1/notes/delete/:id
-export const deleteNote = async (req: AuthRequest, res: Response) => {
+export const deleteNote = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
   try {
-    if (!req.user) return res.status(401).json({ message: "Unauthorized" });
+    if (!req.user) {
+      throw new AppError("Unauthorized", 401);
+    }
 
     const deleted = await Note.findOneAndDelete({
       _id: req.params.id,
       user: req.user.sub,
     });
 
-    if (!deleted)
-      return res.status(404).json({ message: "Note not found or access denied" });
+    if (!deleted) {
+      throw new AppError("Note not found or access denied", 404);
+    }
 
     res.status(200).json({
       message: "Note deleted successfully",
       data: deleted,
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Failed to delete note" });
+    next(err);
   }
 };

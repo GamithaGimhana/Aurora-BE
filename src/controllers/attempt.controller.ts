@@ -1,10 +1,15 @@
-import { Request, Response } from "express";
+import { Request, Response, NextFunction } from "express";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import Attempt from "../models/Attempt";
-import QuizRoom from "../models/QuizRoom";
 import Quiz from "../models/Quiz";
+import { AppError } from "../utils/AppError";
 
-export const getAttemptsByRoom = async (req: Request, res: Response) => {
+// /api/v1/attempts/room/:roomId
+export const getAttemptsByRoom = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
     const { roomId } = req.params;
 
@@ -13,12 +18,8 @@ export const getAttemptsByRoom = async (req: Request, res: Response) => {
       submittedAt: { $ne: null },
     })
       .populate("student", "name email")
-      .sort({
-        score: -1,
-        submittedAt: 1,
-      });
+      .sort({ score: -1, submittedAt: 1 });
 
-    // add rank
     const leaderboard = attempts.map((a, index) => ({
       rank: index + 1,
       student: a.student,
@@ -27,23 +28,27 @@ export const getAttemptsByRoom = async (req: Request, res: Response) => {
       submittedAt: a.submittedAt,
     }));
 
-    return res.json({ data: leaderboard });
+    res.status(200).json({ data: leaderboard });
   } catch (err) {
-    console.error("leaderboard error", err);
-    return res.status(500).json({ message: "Failed to fetch leaderboard" });
+    next(err);
   }
 };
 
 // /api/v1/attempts/me
-export const getMyAttempts = async (req: AuthRequest, res: Response) => {
+export const getMyAttempts = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
   try {
-    if (!req.user)
-      return res.status(401).json({ message: "Unauthorized" });
+    if (!req.user) {
+      throw new AppError("Unauthorized", 401);
+    }
 
     const attempts = await Attempt.find({ student: req.user.sub })
       .populate({
         path: "quizRoom",
-        populate: { path: "quiz" }
+        populate: { path: "quiz" },
       })
       .sort({ createdAt: -1 });
 
@@ -51,103 +56,118 @@ export const getMyAttempts = async (req: AuthRequest, res: Response) => {
       message: "Your attempts fetched",
       data: attempts,
     });
-
   } catch (err) {
-    res.status(500).json({ message: "Failed to fetch your attempts" });
+    next(err);
   }
 };
 
-/**
- * GET /api/v1/attempts/:id
- * Load attempt + quiz + questions
- */
-export const getAttemptById = async (req: AuthRequest, res: Response) => {
+// /api/v1/attempts/:id
+export const getAttemptById = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
   try {
-    const attempt = await Attempt.findById(req.params.id)
-      .populate({
-        path: "quizRoom",
-        populate: {
-          path: "quiz",
-          populate: { path: "questions" },
-        },
-      });
+    const attempt = await Attempt.findById(req.params.id).populate({
+      path: "quizRoom",
+      populate: {
+        path: "quiz",
+        populate: { path: "questions" },
+      },
+    });
 
     if (!attempt) {
-      return res.status(404).json({ message: "Attempt not found" });
+      throw new AppError("Attempt not found", 404);
     }
 
-    // Optional: ensure only owner can access
     if (attempt.student.toString() !== req.user!.sub) {
-      return res.status(403).json({ message: "Forbidden" });
+      throw new AppError("Forbidden", 403);
     }
 
-    return res.json({ data: attempt });
+    res.status(200).json({ data: attempt });
   } catch (err) {
-    console.error("getAttemptById error", err);
-    return res.status(500).json({ message: "Server error" });
+    next(err);
   }
 };
 
-// /api/v1/attempts/delete/:id (admin/lecturer only)
-export const deleteAttempt = async (req: AuthRequest, res: Response) => {
+// /api/v1/attempts/delete/:id
+export const deleteAttempt = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
   try {
     const deleted = await Attempt.findByIdAndDelete(req.params.id);
 
-    if (!deleted)
-      return res.status(404).json({ message: "Attempt not found" });
+    if (!deleted) {
+      throw new AppError("Attempt not found", 404);
+    }
 
     res.status(200).json({
       message: "Attempt deleted",
       data: deleted,
     });
-
   } catch (err) {
-    res.status(500).json({ message: "Failed to delete attempt" });
+    next(err);
   }
 };
 
-export const submitAttempt = async (req: AuthRequest, res: Response) => {
-  const { answers } = req.body;
+// /api/v1/attempts/submit/:id
+export const submitAttempt = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { answers } = req.body;
 
-  const attempt = await Attempt.findById(req.params.id)
-    .populate("quizRoom")
-    .populate("responses.question");
+    const attempt = await Attempt.findById(req.params.id)
+      .populate("quizRoom")
+      .populate("responses.question");
 
-  if (!attempt)
-    return res.status(404).json({ message: "Attempt not found" });
+    if (!attempt) {
+      throw new AppError("Attempt not found", 404);
+    }
 
-  if (attempt.submittedAt)
-    return res.status(400).json({ message: "Already submitted" });
+    if (attempt.submittedAt) {
+      throw new AppError("Already submitted", 400);
+    }
 
-  const room = attempt.quizRoom as any;
-  if (!room.active)
-    return res.status(400).json({ message: "Room inactive" });
+    const room = attempt.quizRoom as any;
+    if (!room.active) {
+      throw new AppError("Room inactive", 400);
+    }
 
-  const quiz = await Quiz.findById(room.quiz).populate("questions");
+    const quiz = await Quiz.findById(room.quiz).populate("questions");
 
-  let score = 0;
+    let score = 0;
 
-  attempt.responses = quiz!.questions.map((q: any) => {
-    const found = answers.find((a: any) => a.questionId === q._id.toString());
-    const selected = found?.selected || "";
+    attempt.responses = quiz!.questions.map((q: any) => {
+      const found = answers.find(
+        (a: any) => a.questionId === q._id.toString()
+      );
+      const selected = found?.selected || "";
 
-    const correct = selected === q.answer;
-    if (correct) score++;
+      const correct = selected === q.answer;
+      if (correct) score++;
 
-    return {
-      question: q._id,
-      selected,
-      correct,
-    };
-  });
+      return {
+        question: q._id,
+        selected,
+        correct,
+      };
+    });
 
-  attempt.score = score;
-  attempt.submittedAt = new Date();
+    attempt.score = score;
+    attempt.submittedAt = new Date();
 
-  await attempt.save();
+    await attempt.save();
 
-  res.json({
-    score,
-    total: attempt.responses.length,
-  });
+    res.status(200).json({
+      score,
+      total: attempt.responses.length,
+    });
+  } catch (err) {
+    next(err);
+  }
 };

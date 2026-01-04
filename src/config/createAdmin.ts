@@ -2,7 +2,7 @@ import User, { Role } from "../models/User";
 import bcrypt from "bcryptjs";
 
 export const createDefaultAdmin = async () => {
-  const exists = await User.findOne({ role: Role.ADMIN });
+  const exists = await User.findOne({ role: { $in: [Role.ADMIN] } });
 
   if (!exists) {
     const password = process.env.DEFAULT_ADMIN_PASSWORD;
