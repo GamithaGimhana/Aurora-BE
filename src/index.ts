@@ -60,9 +60,12 @@ app.get("/", (req, res) => {
 const startServer = async () => {
   await connectDB();
   await createDefaultAdmin();
-  app.listen(SERVER_PORT, () =>
-    console.log(`Server running on port ${SERVER_PORT}`)
-  );
+  // app.listen(SERVER_PORT, () =>
+  //   console.log(`Server running on port ${SERVER_PORT}`)
+  // );
+  app.get("/", (_req, res) => {
+    res.json({ message: "Backend running on Vercel" });
+  });
 };
 
 startServer();
