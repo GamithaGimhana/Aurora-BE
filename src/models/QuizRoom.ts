@@ -1,15 +1,18 @@
-import mongoose, { Document, Schema } from "mongoose";
+import mongoose, { Schema } from "mongoose";
+
+export type RoomVisibility = "PUBLIC" | "PRIVATE";
 
 export interface IQuizRoom extends Document {
   _id: mongoose.Types.ObjectId;
   quiz: mongoose.Types.ObjectId;
   roomCode: string;
   lecturer: mongoose.Types.ObjectId;
-  timeLimit: number; // minutes
-  maxAttempts: number;   
-  startsAt?: Date;  
+  timeLimit: number;
+  maxAttempts: number;
+  startsAt?: Date;
   endsAt?: Date;
   active: boolean;
+  visibility: RoomVisibility;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -23,7 +26,12 @@ const quizRoomSchema = new Schema<IQuizRoom>(
     maxAttempts: { type: Number, default: 1 },
     startsAt: { type: Date },
     endsAt: { type: Date },
-    active: { type: Boolean, default: true }
+    active: { type: Boolean, default: true },
+    visibility: {
+      type: String,
+      enum: ["PUBLIC", "PRIVATE"],
+      default: "PUBLIC",
+    },
   },
   { timestamps: true }
 );

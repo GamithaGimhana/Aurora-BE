@@ -5,6 +5,7 @@ import Attempt from "../models/Attempt";
 import Quiz from "../models/Quiz";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import { Role } from "../models/User";
+import mongoose from "mongoose";
 
 const generateRoomCode = async (): Promise<string> => {
   let code: string;
@@ -20,10 +21,21 @@ const generateRoomCode = async (): Promise<string> => {
 
 export const createQuizRoom = async (req: AuthRequest, res: Response) => {
   try {
-    const { quizId, timeLimit, maxAttempts, startsAt, endsAt } = req.body;
+    const {
+      quizId,
+      timeLimit,
+      maxAttempts,
+      startsAt,
+      endsAt,
+      visibility = "PUBLIC",
+    } = req.body;
 
     if (!quizId || !timeLimit) {
       return res.status(400).json({ message: "Quiz and time limit are required" });
+    }
+
+    if (!["PUBLIC", "PRIVATE"].includes(visibility)) {
+      return res.status(400).json({ message: "Invalid visibility" });
     }
 
     const quiz = await Quiz.findById(quizId);
@@ -33,9 +45,8 @@ export const createQuizRoom = async (req: AuthRequest, res: Response) => {
 
     let room;
     let attempts = 0;
-    const MAX_RETRIES = 5;
 
-    while (!room && attempts < MAX_RETRIES) {
+    while (!room && attempts < 5) {
       try {
         const roomCode = await generateRoomCode();
 
@@ -47,24 +58,19 @@ export const createQuizRoom = async (req: AuthRequest, res: Response) => {
           maxAttempts: maxAttempts ?? 1,
           startsAt,
           endsAt,
+          visibility,
           active: true,
         });
-
       } catch (err: any) {
         if (err.code === 11000) {
           attempts++;
-          continue; // retry with new code
+          continue;
         }
         throw err;
       }
     }
 
-    if (!room) {
-      return res.status(500).json({ message: "Could not generate unique room code" });
-    }
-
     return res.status(201).json({ data: room });
-
   } catch (err) {
     console.error("createQuizRoom error", err);
     return res.status(500).json({ message: "Server error" });
@@ -81,43 +87,53 @@ export const startQuiz = async (req: AuthRequest, res: Response) => {
       populate: { path: "questions" },
     });
 
-    if (!room || !room.active) {
-      return res.status(404).json({ message: "Room not found or inactive" });
+    if (!room) {
+      return res.status(404).json({ message: "Room not found" });
     }
 
-    const existing = await Attempt.findOne({
-      student: userId,
-      quizRoom: roomId,
-      submittedAt: null
-    });
-
-    if (existing) {
-      return res.json({ attempt: existing, quiz: room.quiz });
+    if (!room.active) {
+      return res.status(403).json({ message: "Room is locked" });
     }
 
-    // If startsAt / endsAt logic exists, enforce it
-    if (room.startsAt && new Date() < new Date(room.startsAt)) {
-      return res.status(400).json({ message: "Quiz has not started yet" });
-    }
-    if (room.endsAt && new Date() > new Date(room.endsAt)) {
-      return res.status(400).json({ message: "Quiz has already ended" });
+    const now = new Date();
+
+    if (room.startsAt && now < room.startsAt) {
+      return res.status(403).json({ message: "Quiz has not started yet" });
     }
 
-    // check attempts count
-    const prevAttempts = await Attempt.countDocuments({
+    if (room.endsAt && now > room.endsAt) {
+      return res.status(403).json({ message: "Quiz has ended" });
+    }
+
+    const totalAttempts = await Attempt.countDocuments({
       quizRoom: room._id,
       student: userId,
     });
 
-    if (room.maxAttempts && prevAttempts >= room.maxAttempts) {
-      return res.status(400).json({ message: "Maximum attempts reached" });
+    if (room.maxAttempts && totalAttempts >= room.maxAttempts) {
+      return res.status(403).json({
+        message: "Attempt limit reached",
+      });
     }
 
-    // Create the attempt record (empty responses initially)
+    // Resume ONLY if there is an unfinished attempt
+    const existingAttempt = await Attempt.findOne({
+      quizRoom: room._id,
+      student: userId,
+      submittedAt: null,
+    });
+
+    if (existingAttempt) {
+      return res.json({
+        attempt: existingAttempt,
+        quiz: room.quiz,
+      });
+    }
+
     const attempt = await Attempt.create({
       quizRoom: room._id,
       student: userId,
-      attemptNumber: prevAttempts + 1,
+      attemptNumber: totalAttempts + 1,
       score: 0,
     });
 
@@ -125,8 +141,12 @@ export const startQuiz = async (req: AuthRequest, res: Response) => {
       ? new Date(Date.now() + room.timeLimit * 60_000)
       : null;
 
-    // Return structured payload frontend expects
-    return res.json({ attempt, quiz: room.quiz, endsAt });
+    return res.json({
+      attempt,
+      quiz: room.quiz,
+      endsAt,
+    });
+
   } catch (err) {
     console.error("startQuiz error", err);
     return res.status(500).json({ message: "Server error" });
@@ -144,7 +164,13 @@ export const getMyRooms = async (req: AuthRequest, res: Response) => {
  */
 export const getRoomById = async (req: AuthRequest, res: Response) => {
   try {
-    const room = await QuizRoom.findById(req.params.roomId).populate({
+    const { roomId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(roomId)) {
+      return res.status(400).json({ message: "Invalid room id" });
+    }
+
+    const room = await QuizRoom.findById(roomId).populate({
       path: "quiz",
       populate: { path: "questions" },
     });
@@ -153,7 +179,43 @@ export const getRoomById = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: "Room not found" });
     }
 
-    return res.json({ data: room });
+    if (
+      room.visibility === "PRIVATE" &&
+      room.lecturer.toString() !== req.user!.sub &&
+      !req.user!.role.includes(Role.ADMIN)
+    ) {
+      return res.status(403).json({ message: "Private room" });
+    }
+
+    const now = new Date();
+
+    if (
+      req.user!.role.includes(Role.STUDENT) &&
+      (
+        (room.startsAt && now < room.startsAt) ||
+        (room.endsAt && now > room.endsAt)
+      )
+    ) {
+      return res
+        .status(403)
+        .json({ message: "Quiz not available at this time" });
+    }
+
+    let currentAttempts = 0;
+
+    if (req.user!.role.includes(Role.STUDENT)) {
+      currentAttempts = await Attempt.countDocuments({
+        quizRoom: room._id,
+        student: req.user!.sub,
+      });
+    }
+
+    return res.json({
+      data: {
+        ...room.toObject(),
+        currentAttempts, // ✅ FRONTEND USES THIS
+      },
+    });
   } catch (err) {
     console.error("getRoomById error", err);
     return res.status(500).json({ message: "Server error" });
@@ -165,31 +227,34 @@ export const getRoomById = async (req: AuthRequest, res: Response) => {
  * Student joins a room using roomCode
  */
 export const joinRoomByCode = async (req: AuthRequest, res: Response) => {
-  try {
-    const { roomCode } = req.body;
+  const { roomCode } = req.body;
 
-    if (!roomCode) {
-      return res.status(400).json({ message: "Room code is required" });
-    }
-
-    const room = await QuizRoom.findOne({
-      roomCode: roomCode.toUpperCase(),
-      active: true,
-    });
-
-    if (!room) {
-      return res.status(404).json({ message: "Invalid or inactive room code" });
-    }
-
-    return res.json({
-      data: {
-        roomId: room._id,
-      },
-    });
-  } catch (err) {
-    console.error("joinRoomByCode error", err);
-    return res.status(500).json({ message: "Server error" });
+  if (!roomCode) {
+    return res.status(400).json({ message: "Room code is required" });
   }
+
+  const room = await QuizRoom.findOne({
+    roomCode: roomCode.toUpperCase(),
+    active: true,
+  });
+
+  if (!room) {
+    return res.status(404).json({ message: "Invalid or inactive room code" });
+  }
+
+  const now = new Date();
+
+  if (room.startsAt && now < room.startsAt) {
+    return res.status(403).json({ message: "Quiz has not started yet" });
+  }
+
+  if (room.endsAt && now > room.endsAt) {
+    return res.status(403).json({ message: "Quiz has ended" });
+  }
+
+  return res.json({
+    data: { roomId: room._id },
+  });
 };
 
 /**
@@ -228,6 +293,7 @@ export const getAvailableRooms = async (req: AuthRequest, res: Response) => {
 
   const rooms = await QuizRoom.find({
     active: true,
+    visibility: "PUBLIC",
     $and: [
       { $or: [{ startsAt: null }, { startsAt: { $lte: now } }] },
       { $or: [{ endsAt: null }, { endsAt: { $gte: now } }] },
@@ -237,4 +303,41 @@ export const getAvailableRooms = async (req: AuthRequest, res: Response) => {
     .sort({ createdAt: -1 });
 
   res.json({ data: rooms });
+};
+
+export const deleteRoom = async (req: AuthRequest, res: Response) => {
+  const { roomId } = req.params;
+
+  if (!mongoose.Types.ObjectId.isValid(roomId)) {
+    return res.status(400).json({ message: "Invalid room id" });
+  }
+
+  const room = await QuizRoom.findById(roomId);
+
+  if (!room) {
+    return res.status(404).json({ message: "Room not found" });
+  }
+
+  // ownership check
+  if (
+    room.lecturer.toString() !== req.user!.sub &&
+    !req.user!.role.includes(Role.ADMIN)
+  ) {
+    return res.status(403).json({ message: "Forbidden" });
+  }
+
+  // OPTIONAL but smart: prevent deletion if attempts exist
+  const attemptsCount = await Attempt.countDocuments({
+    quizRoom: room._id,
+  });
+
+  if (attemptsCount > 0) {
+    return res.status(400).json({
+      message: "Cannot delete room with student attempts",
+    });
+  }
+
+  await room.deleteOne();
+
+  res.json({ message: "Room deleted successfully" });
 };

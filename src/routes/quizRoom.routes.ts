@@ -10,6 +10,7 @@ import {
   joinRoomByCode,
   toggleRoomActive,
   getAvailableRooms,
+  deleteRoom,
 } from "../controllers/quizRoom.controller";
 
 const router = Router();
@@ -59,6 +60,13 @@ router.patch(
   authenticate,
   requireRole("LECTURER", "ADMIN"),
   toggleRoomActive
+);
+
+router.delete(
+  "/:roomId",
+  authenticate,
+  requireRole("LECTURER", "ADMIN"),
+  deleteRoom
 );
 
 export default router;
