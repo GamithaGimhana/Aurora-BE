@@ -8,10 +8,18 @@ import {
   getMyRooms,
   getRoomById,
   joinRoomByCode,
-  toggleRoomActive
+  toggleRoomActive,
+  getAvailableRooms,
 } from "../controllers/quizRoom.controller";
 
 const router = Router();
+
+router.get(
+  "/available",
+  authenticate,
+  requireRole("STUDENT", "ADMIN"),
+  getAvailableRooms
+);
 
 router.post(
   "/create",

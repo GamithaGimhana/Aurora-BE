@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import User from "../models/User";
+import User, { Role } from "../models/User";
 import Note from "../models/Note";
 import Quiz from "../models/Quiz";
 import QuizRoom from "../models/QuizRoom";
@@ -29,8 +29,12 @@ export const getAllUsers = async (_req: Request, res: Response) => {
 export const updateUserRole = async (req: Request, res: Response) => {
   const { role } = req.body;
 
-  if (!["STUDENT", "LECTURER", "ADMIN"].includes(role)) {
+  if (!["STUDENT", "LECTURER"].includes(role)) {
     return res.status(400).json({ message: "Invalid role" });
+  }
+
+  if (role === "ADMIN") {
+    return res.status(400).json({ message: "Cannot assign ADMIN role" });
   }
 
   const user = await User.findByIdAndUpdate(
@@ -47,11 +51,19 @@ export const updateUserRole = async (req: Request, res: Response) => {
 };
 
 export const deleteUser = async (req: Request, res: Response) => {
-  const user = await User.findByIdAndDelete(req.params.id);
+  const user = await User.findById(req.params.id);
 
   if (!user) {
     return res.status(404).json({ message: "User not found" });
   }
 
-  res.json({ message: "User deleted" });
+  if (user.role.includes(Role.ADMIN)) {
+    return res.status(403).json({
+      message: "Admin account cannot be deleted",
+    });
+  }
+
+  await user.deleteOne();
+
+  res.json({ message: "User deleted successfully" });
 };

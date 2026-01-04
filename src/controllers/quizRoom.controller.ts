@@ -221,3 +221,20 @@ export const toggleRoomActive = async (req: AuthRequest, res: Response) => {
     return res.status(500).json({ message: "Server error" });
   }
 };
+
+// GET /api/v1/rooms/available
+export const getAvailableRooms = async (req: AuthRequest, res: Response) => {
+  const now = new Date();
+
+  const rooms = await QuizRoom.find({
+    active: true,
+    $and: [
+      { $or: [{ startsAt: null }, { startsAt: { $lte: now } }] },
+      { $or: [{ endsAt: null }, { endsAt: { $gte: now } }] },
+    ],
+  })
+    .populate("quiz", "title description difficulty questions")
+    .sort({ createdAt: -1 });
+
+  res.json({ data: rooms });
+};
