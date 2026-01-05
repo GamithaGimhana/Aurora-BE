@@ -117,7 +117,7 @@ export const generateAttemptPDF = (attempt: any, res: Response) => {
   // Table Header
   doc.fontSize(10).fillColor(COLORS.textLight);
   doc.text("#", 50, currentY);
-  doc.text("Question ID / Answer", 80, currentY); // Assuming we don't have Question Text populated based on your schema
+  doc.text("Question ID / Answer", 80, currentY);
   doc.text("Status", 450, currentY);
   
   currentY += 20;
@@ -144,8 +144,6 @@ export const generateAttemptPDF = (attempt: any, res: Response) => {
     doc.text((index + 1).toString(), 55, currentY);
 
     // 2. Selection
-    // Since your model only has the Question ID, we display the ID. 
-    // Ideally, you should populate 'responses.question' to show the question text here.
     const questionText = `QID: ${r.question.toString().substring(0, 10)}...`; 
     doc.text(questionText, 80, currentY, { width: 300, lineBreak: false });
     
