@@ -24,8 +24,8 @@ const app = express();
 // CORS
 app.use(
   cors({
-    origin: ["http://localhost:5173"],
-    // origin: ['http://localhost:5173', 'https://aurora-fe-eight.vercel.app'],
+    // origin: ["http://localhost:5173"],
+    origin: ['http://localhost:5173', 'https://aurora-fe-eight.vercel.app'],
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
@@ -60,12 +60,12 @@ app.get("/", (req, res) => {
 const startServer = async () => {
   await connectDB();
   await createDefaultAdmin();
-  app.listen(SERVER_PORT, () =>
-    console.log(`Server running on port ${SERVER_PORT}`)
-  );
-  // app.get("/", (_req, res) => {
-  //   res.json({ message: "Backend running on Vercel" });
-  // });
+  // app.listen(SERVER_PORT, () =>
+  //   console.log(`Server running on port ${SERVER_PORT}`)
+  // );
+  app.get("/", (_req, res) => {
+    res.json({ message: "Backend running on Vercel" });
+  });
 };
 
 startServer();
