@@ -50,7 +50,7 @@ app.use(cookieParser());
 
 // ROUTES 
 app.get("/", (_req, res) => {
-  res.json({ message: "Backend running on Vercel 🚀" });
+  res.json({ message: "Backend running on Vercel !!!" });
 });
 
 app.use("/api/v1/auth", authRoutes);
