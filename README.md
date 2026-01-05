@@ -101,16 +101,23 @@ The API enforces strict role-based access control (RBAC) for three user roles—
 
    Create a `.env` file in the backend root directory:
 
-   ```env
-   SERVER_PORT=5000
-   MONGO_URI=mongodb://localhost:27017/aurora
-   JWT_ACCESS_SECRET=your-access-token-secret-key-here
-   JWT_REFRESH_SECRET=your-refresh-token-secret-key-here
-   DEFAULT_ADMIN_EMAIL=admin@aurora.com
-   DEFAULT_ADMIN_PASSWORD=your-strong-password-here
-   ```
+```env
+# Server
+SERVER_PORT=5000
 
-4. **Start the Backend Server**
+# Database
+MONGO_URI=mongodb://localhost:27017/aurora
+
+# Auth
+JWT_ACCESS_SECRET=replace-me
+JWT_REFRESH_SECRET=replace-me
+
+# Default admin bootstrap (created at startup if no admin exists)
+DEFAULT_ADMIN_EMAIL=admin@aurora.com
+DEFAULT_ADMIN_PASSWORD=replace-me
+```
+
+3. Run
 
    ```bash
    npm run dev
