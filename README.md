@@ -60,6 +60,11 @@ npm start
 - Protected resources (JWT required): notes, flashcards, questions, quizzes, rooms, attempts
 - Admin-only endpoints under `/api/v1/admin`
 
+## Deployment
+
+- **Backend**: https://aurora-be.vercel.app/
+- **Frontend**: https://aurora-fe-eight.vercel.app/
+
 ## Project Structure (src)
 
 ```
