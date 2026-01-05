@@ -13,6 +13,7 @@ export interface IQuizRoom extends Document {
   endsAt?: Date;
   active: boolean;
   visibility: RoomVisibility;
+  participants: mongoose.Types.ObjectId[];
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -22,6 +23,7 @@ const quizRoomSchema = new Schema<IQuizRoom>(
     quiz: { type: Schema.Types.ObjectId, ref: "Quiz", required: true },
     roomCode: { type: String, required: true, unique: true, trim: true, uppercase: true },
     lecturer: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    participants: { type: [Schema.Types.ObjectId], ref: "User" },
     timeLimit: { type: Number, required: true },
     maxAttempts: { type: Number, default: 1 },
     startsAt: { type: Date },

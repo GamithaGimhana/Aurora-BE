@@ -189,10 +189,19 @@ export const getRoomById = async (
       throw new AppError("Room not found", 404);
     }
 
+    const userId = req.user!.sub;
+
+    const isLecturer = room.lecturer.toString() === userId;
+    const isAdmin = req.user!.role.includes(Role.ADMIN);
+    const isParticipant = room.participants
+      ?.map(id => id.toString())
+      .includes(userId);
+
     if (
       room.visibility === "PRIVATE" &&
-      room.lecturer.toString() !== req.user!.sub &&
-      !req.user!.role.includes(Role.ADMIN)
+      !isLecturer &&
+      !isAdmin &&
+      !isParticipant
     ) {
       throw new AppError("Private room", 403);
     }
@@ -256,6 +265,16 @@ export const joinRoomByCode = async (
 
     if (room.endsAt && now > room.endsAt) {
       throw new AppError("Quiz has ended", 403);
+    }
+
+    const userId = new mongoose.Types.ObjectId(req.user!.sub);
+
+    const alreadyJoined = room.participants
+      ?.some(id => id.equals(userId));
+
+    if (!alreadyJoined) {
+      room.participants.push(userId);
+      await room.save();
     }
 
     res.json({ data: { roomId: room._id } });

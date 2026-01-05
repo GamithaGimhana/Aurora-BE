@@ -1,8 +1,15 @@
 import { Request, Response, NextFunction } from "express";
 import { AuthRequest } from "../middlewares/auth.middleware";
-import Attempt from "../models/Attempt";
+import Attempt, { IAttempt } from "../models/Attempt";
 import Quiz from "../models/Quiz";
 import { AppError } from "../utils/AppError";
+import { generateAttemptPDF } from "../utils/attemptReportPdf";
+import { Role } from "../models/User";
+import { IQuizRoom } from "../models/QuizRoom";
+
+type AttemptWithPopulatedRoom = Document & IAttempt & {
+  quizRoom: IQuizRoom;
+};
 
 // /api/v1/attempts/room/:roomId
 export const getAttemptsByRoom = async (
@@ -171,3 +178,49 @@ export const submitAttempt = async (
     next(err);
   }
 };
+
+// /api/v1/attempts/report/:id
+export const downloadAttemptReport = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const attempt = await Attempt.findById(req.params.id)
+      .populate("student", "name email")
+      .populate({
+        path: "quizRoom",
+        populate: [
+          { path: "quiz", select: "title" },
+          { path: "lecturer", select: "_id" },
+        ],
+      }) as AttemptWithPopulatedRoom | null;
+
+    if (!attempt) {
+      throw new AppError("Attempt not found", 404);
+    }
+
+    if (!attempt.submittedAt) {
+      throw new AppError("Attempt not submitted", 400);
+    }
+
+    const userId = req.user!.sub;
+    const roles = req.user!.role;
+
+    const isOwner =
+      attempt.student._id.toString() === userId;
+
+    const isLecturer = attempt.quizRoom.lecturer.toString() === userId;
+
+    const isAdmin = roles.includes(Role.ADMIN);
+
+    if (!isOwner && !isLecturer && !isAdmin) {
+      throw new AppError("Forbidden", 403);
+    }
+
+    generateAttemptPDF(attempt, res);
+  } catch (err) {
+    next(err);
+  }
+};
+

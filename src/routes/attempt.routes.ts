@@ -2,13 +2,13 @@ import { Router } from "express";
 import { authenticate } from "../middlewares/auth.middleware";
 import { requireRole } from "../middlewares/role.middleware";
 import { Role } from "../models/User";
-
 import {
   getAttemptsByRoom,
   getMyAttempts,
   getAttemptById,
   deleteAttempt,
   submitAttempt,
+  downloadAttemptReport,
 } from "../controllers/attempt.controller";
 
 const router = Router();
@@ -35,5 +35,11 @@ router.delete(
 );
 
 router.post("/:id/submit", authenticate, submitAttempt);
+
+router.get(
+  "/:id/report",
+  authenticate,
+  downloadAttemptReport
+);
 
 export default router;
