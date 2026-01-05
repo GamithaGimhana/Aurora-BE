@@ -7,6 +7,7 @@ import { Role } from "../models/User";
 import mongoose from "mongoose";
 import { AppError } from "../utils/AppError";
 
+// Helper function to generate a unique room code
 const generateRoomCode = async (): Promise<string> => {
   let code: string;
   let exists: boolean;
@@ -19,6 +20,7 @@ const generateRoomCode = async (): Promise<string> => {
   return code;
 };
 
+// /api/v1/quiz-rooms/create
 export const createQuizRoom = async (
   req: AuthRequest,
   res: Response,
