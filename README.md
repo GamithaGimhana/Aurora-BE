@@ -50,14 +50,17 @@ The API enforces strict role-based access control (RBAC) for three user roles—
 | Technology     | Version | Purpose                                        |
 | -------------- | ------- | ---------------------------------------------- |
 | **Node.js**    | 18.x+   | JavaScript runtime for server-side code        |
-| **Express.js** | 4.x     | Minimal and flexible web application framework |
+| **Express.js** | 5.x     | Minimal and flexible web application framework |
 | **TypeScript** | 5.x     | Type-safe JavaScript for robust code           |
 | **MongoDB**    | 5.0+    | NoSQL database for flexible data storage       |
-| **Mongoose**   | Latest  | MongoDB object modeling for Node.js            |
+| **Mongoose**   | 9.x     | MongoDB object modeling for Node.js            |
 | **JWT**        | Latest  | Secure token-based authentication              |
 | **bcryptjs**   | Latest  | Password hashing and encryption                |
 | **CORS**       | Latest  | Cross-origin resource sharing                  |
 | **PDFKit**     | Latest  | PDF document generation                        |
+| **Multer**     | Latest  | File upload middleware                         |
+| **OpenAI**     | Latest  | AI integration for intelligent features        |
+| **Google AI**  | Latest  | Generative AI capabilities                     |
 
 ### Development Tools
 
@@ -130,7 +133,7 @@ DEFAULT_ADMIN_PASSWORD=replace-me
    Database connected successfully
    ```
 
-5. **Build for Production**
+4. **Build for Production**
    ```bash
    npm run build
    npm start
@@ -265,10 +268,16 @@ Notes:
 
 Attempts:
   GET    /attempts               - Get user's attempts
+  GET    /attempts/me            - Get my attempts (Student)
   GET    /attempts/:id           - Get specific attempt
-  POST   /attempts               - Start new attempt
-  PUT    /attempts/:id           - Submit attempt
+  POST   /attempts/:id/submit    - Submit attempt
+  DELETE /attempts/:id           - Delete attempt (Admin/Lecturer)
   GET    /attempts/:id/report    - Download attempt report (PDF)
+
+Users:
+  GET    /users/me               - Get my profile
+  PUT    /users/me               - Update my profile
+  PUT    /users/me/password      - Change my password
 
 Quiz Rooms:
   GET    /quiz-rooms             - Get all quiz rooms
