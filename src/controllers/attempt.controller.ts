@@ -3,7 +3,7 @@ import { AuthRequest } from "../middlewares/auth.middleware";
 import Attempt, { IAttempt } from "../models/Attempt";
 import Quiz from "../models/Quiz";
 import { AppError } from "../utils/AppError";
-import { generateAttemptPDF } from "../utils/attemptReportPdf";
+import { generateAttemptPDF } from "../services/reports/attemptReport.service";
 import { Role } from "../models/User";
 import { IQuizRoom } from "../models/QuizRoom";
 
