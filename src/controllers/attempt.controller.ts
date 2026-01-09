@@ -189,6 +189,10 @@ export const downloadAttemptReport = async (
     const attempt = await Attempt.findById(req.params.id)
       .populate("student", "name email")
       .populate({
+        path: "responses.question",
+        select: "question options answer",
+      })
+      .populate({
         path: "quizRoom",
         populate: [
           { path: "quiz", select: "title" },

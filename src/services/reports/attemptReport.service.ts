@@ -1,20 +1,18 @@
 import PDFDocument from "pdfkit";
 import { Response } from "express";
 
-// DESIGN SYSTEM CONSTANTS
-// Modern, accessible color palette
+// --- CONSTANTS ---
 const COLORS = {
-  primary: "#4F46E5",    // Indigo 600
-  secondary: "#4338ca",  // Indigo 700 (for accents)
-  textDark: "#111827",   // Gray 900
-  textMedium: "#374151", // Gray 700
-  textLight: "#9CA3AF",  // Gray 400
-  bgLight: "#F9FAFB",    // Gray 50
-  border: "#E5E7EB",     // Gray 200
-  success: "#059669",    // Emerald 600
-  successBg: "#D1FAE5",  // Emerald 100
-  error: "#DC2626",      // Red 600
-  errorBg: "#FEE2E2",    // Red 100
+  primary: "#4F46E5",
+  textDark: "#111827",
+  textMedium: "#374151",
+  textLight: "#9CA3AF",
+  bgLight: "#F9FAFB",
+  border: "#E5E7EB",
+  success: "#059669",
+  successBg: "#ECFDF5",
+  error: "#DC2626",
+  errorBg: "#FEF2F2",
   white: "#FFFFFF",
 };
 
@@ -23,11 +21,13 @@ const FONTS = {
   regular: "Helvetica",
 };
 
-export const generateAttemptPDF = (attempt: any, res: Response) => {
-  // enable bufferPages to allow editing headers/footers after content generation
-  const doc = new PDFDocument({ margin: 50, size: "A4", bufferPages: true });
+const PAGE_MARGIN = 50;
+const PAGE_WIDTH = 595.28; // A4 standard width
+const CONTENT_WIDTH = PAGE_WIDTH - PAGE_MARGIN * 2;
 
-  // -- HTTP Headers --
+export const generateAttemptPDF = (attempt: any, res: Response) => {
+  const doc = new PDFDocument({ margin: PAGE_MARGIN, size: "A4", bufferPages: true });
+
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader(
     "Content-Disposition",
@@ -36,168 +36,134 @@ export const generateAttemptPDF = (attempt: any, res: Response) => {
 
   doc.pipe(res);
 
-  // HELPER FUNCTIONS
-  // Check if we need a new page
+  // --- HELPER FUNCTIONS ---
+
+  // Check if we need a new page based on estimated height of the next item
   const checkPageBreak = (heightNeeded: number) => {
-    if (doc.y + heightNeeded > doc.page.height - 50) {
+    if (doc.y + heightNeeded > doc.page.height - PAGE_MARGIN) {
       doc.addPage();
     }
   };
 
-  // Draw a colored status pill (Badge)
-  const drawBadge = (text: string, x: number, y: number, color: string, bgColor: string) => {
-    const width = 60;
-    const height = 20;
-    doc.roundedRect(x, y, width, height, 10).fill(bgColor);
-    doc
-      .fillColor(color)
-      .font(FONTS.bold)
-      .fontSize(9)
-      .text(text, x, y + 5, { width: width, align: "center" });
-  };
-
-  // HEADER SECTION
-  // Top Accent Line
+  // 1. HEADER
   doc.rect(0, 0, doc.page.width, 6).fill(COLORS.primary);
-
-  // Logo / Brand
   doc.moveDown(2);
-  doc.fillColor(COLORS.primary).font(FONTS.bold).fontSize(20).text("AURORA", 50);
-  doc.fillColor(COLORS.textLight).font(FONTS.regular).fontSize(10).text("INTERACTIVE LEARNING", 50, doc.y + 2, { characterSpacing: 1.5 });
 
-  // Right Side: Report Meta
-  doc.font(FONTS.bold).fontSize(24).fillColor(COLORS.textDark).text("Attempt Report", 0, 70, { align: "right" });
-  doc.font(FONTS.regular).fontSize(10).fillColor(COLORS.textLight).text(`#${attempt._id.toString().slice(-8).toUpperCase()}`, 0, 100, { align: "right" });
+  // Brand
+  doc.fillColor(COLORS.primary).font(FONTS.bold).fontSize(20).text("AURORA", PAGE_MARGIN);
+  doc.fillColor(COLORS.textLight).font(FONTS.regular).fontSize(10).text("INTERACTIVE LEARNING", { characterSpacing: 1 });
+
+  // Meta Title
+  doc.font(FONTS.bold).fontSize(24).fillColor(COLORS.textDark).text("Attempt Report", 0, 70, { align: "right", width: PAGE_WIDTH - PAGE_MARGIN });
+  doc.font(FONTS.regular).fontSize(10).fillColor(COLORS.textLight).text(`#${attempt._id.toString().toUpperCase().slice(-8)}`, 0, 100, { align: "right", width: PAGE_WIDTH - PAGE_MARGIN });
 
   doc.moveDown(3);
 
-  // SUMMARY CARD (Grid Layout)
+  // 2. SUMMARY SECTION
   const startY = doc.y;
   
-  // Background box for summary
-  doc.roundedRect(50, startY, 495, 110, 8).fill(COLORS.bgLight);
+  // Draw Summary Box
+  doc.roundedRect(PAGE_MARGIN, startY, CONTENT_WIDTH, 100, 8).fill(COLORS.bgLight);
   doc.strokeColor(COLORS.border).lineWidth(1).stroke();
 
-  // -- Left Column: Student Details --
-  const infoX = 70;
-  let infoY = startY + 20;
-  
-  const drawLabelValue = (label: string, value: string) => {
-    doc.font(FONTS.bold).fontSize(9).fillColor(COLORS.textLight).text(label.toUpperCase(), infoX, infoY);
-    doc.font(FONTS.bold).fontSize(11).fillColor(COLORS.textMedium).text(value, infoX, infoY + 12);
-    infoY += 35; // Spacing
-  };
-
-  // Calculate generic data
+  // Student Info
   const studentName = attempt.student?.name || "Unknown Student";
   const quizTitle = attempt.quizRoom?.quiz?.title || "Untitled Quiz";
-  const dateStr = new Date(attempt.submittedAt).toLocaleDateString("en-US", { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const dateStr = new Date(attempt.submittedAt).toLocaleDateString("en-GB", { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
-  // Row 1
-  drawLabelValue("Student Name", studentName);
-  drawLabelValue("Quiz Title", quizTitle);
-  
-  // Reset Y for second column of text, Shift X
-  infoY = startY + 20;
-  const col2X = 250;
-  
-  // Row 2 (Column 2)
-  doc.font(FONTS.bold).fontSize(9).fillColor(COLORS.textLight).text("SUBMITTED AT", col2X, infoY);
-  doc.font(FONTS.bold).fontSize(11).fillColor(COLORS.textMedium).text(dateStr, col2X, infoY + 12);
-  
-  infoY += 35;
-  doc.font(FONTS.bold).fontSize(9).fillColor(COLORS.textLight).text("ATTEMPT #", col2X, infoY);
-  doc.font(FONTS.bold).fontSize(11).fillColor(COLORS.textMedium).text(attempt.attemptNumber.toString(), col2X, infoY + 12);
+  doc.fillColor(COLORS.textDark).fontSize(12).font(FONTS.bold).text(studentName, PAGE_MARGIN + 20, startY + 20);
+  doc.fillColor(COLORS.textMedium).fontSize(10).font(FONTS.regular).text(quizTitle, PAGE_MARGIN + 20, startY + 40);
+  doc.fillColor(COLORS.textLight).fontSize(9).text(dateStr, PAGE_MARGIN + 20, startY + 70);
 
-  // -- Right Column: Visual Score --
+  // Score Circle logic
   const totalQuestions = attempt.responses.length;
   const percentage = Math.round((attempt.score / totalQuestions) * 100);
   const isPass = percentage >= 50;
-  
-  const scoreCenterX = 480;
-  const scoreCenterY = startY + 55;
-  const radius = 35;
 
-  // Draw Circle Background
-  doc.lineWidth(4).strokeColor(COLORS.border)
-     .circle(scoreCenterX, scoreCenterY, radius).stroke();
-  
-  // Draw Progress Arc (Approximate)
+  const circleX = 500;
+  const circleY = startY + 50;
+  const radius = 30;
+
+  doc.lineWidth(4).strokeColor(COLORS.border).circle(circleX, circleY, radius).stroke();
   doc.lineWidth(4).strokeColor(isPass ? COLORS.success : COLORS.error)
-     .path(`M ${scoreCenterX} ${scoreCenterY - radius} A ${radius} ${radius} 0 ${percentage > 50 ? 1 : 0} 1 ${scoreCenterX + radius * Math.sin(percentage * 3.6 * Math.PI / 180)} ${scoreCenterY - radius * Math.cos(percentage * 3.6 * Math.PI / 180)}`)
+     .path(`M ${circleX} ${circleY - radius} A ${radius} ${radius} 0 ${percentage > 50 ? 1 : 0} 1 ${circleX + radius * Math.sin(percentage * 3.6 * Math.PI / 180)} ${circleY - radius * Math.cos(percentage * 3.6 * Math.PI / 180)}`)
      .stroke();
 
-  // Score Text
-  doc.font(FONTS.bold).fontSize(18).fillColor(COLORS.textDark)
-     .text(`${percentage}%`, scoreCenterX - 20, scoreCenterY - 8, { width: 40, align: "center" });
-     
-  doc.font(FONTS.regular).fontSize(8).fillColor(COLORS.textLight)
-     .text("SCORE", scoreCenterX - 20, scoreCenterY + 12, { width: 40, align: "center" });
+  doc.font(FONTS.bold).fontSize(14).fillColor(COLORS.textDark)
+     .text(`${percentage}%`, circleX - 20, circleY - 6, { width: 40, align: "center" });
 
-  doc.moveDown(4); // Move cursor past the summary box
+  doc.moveDown(6);
 
-  // QUESTIONS SECTION  
-  doc.font(FONTS.bold).fontSize(14).fillColor(COLORS.textDark).text("Response Details", 50);
-  doc.moveDown(1);
-  doc.strokeColor(COLORS.border).lineWidth(1).moveTo(50, doc.y).lineTo(545, doc.y).stroke();
+  // 3. QUESTIONS LIST
+  doc.font(FONTS.bold).fontSize(14).fillColor(COLORS.textDark).text("Detailed Responses", PAGE_MARGIN);
+  doc.moveDown(0.5);
+  doc.strokeColor(COLORS.border).lineWidth(1).moveTo(PAGE_MARGIN, doc.y).lineTo(PAGE_WIDTH - PAGE_MARGIN, doc.y).stroke();
   doc.moveDown(1.5);
 
   attempt.responses.forEach((r: any, index: number) => {
-    const cardHeight = 60;
-    checkPageBreak(cardHeight + 20);
-
-    const currentY = doc.y;
+    // A. PREPARE DATA
+    const qIndex = (index + 1).toString().padStart(2, '0');
+    const questionText = r.question ? r.question.question : "Question content no longer available";
+    const selectedText = r.selected;
     const isCorrect = r.correct;
 
-    // Card Background (Subtle)
-    doc.roundedRect(50, currentY, 495, cardHeight, 6).fill(COLORS.white);
-    doc.roundedRect(50, currentY, 4, cardHeight, 2).fill(isCorrect ? COLORS.success : COLORS.error);
+    // B. CALCULATE HEIGHTS (To prevent page break inside a question)
+    doc.font(FONTS.bold).fontSize(10);
+    const qTextHeight = doc.heightOfString(questionText, { width: 380 }); // Width for question text column
+    const boxHeight = qTextHeight + 45; // Buffer for padding and answer text
 
-    // Question Number
-    doc.fillColor(COLORS.textLight).font(FONTS.bold).fontSize(14)
-       .text((index + 1).toString().padStart(2, '0'), 70, currentY + 22);
-
-    // Question / Answer Text
-    const questionLabel = `QID: ${r.question.toString().substring(0, 16)}...`;
+    // C. CHECK PAGE BREAK
+    checkPageBreak(boxHeight + 20);
     
-    doc.font(FONTS.bold).fontSize(10).fillColor(COLORS.textDark)
-       .text(questionLabel, 110, currentY + 15);
+    const currentY = doc.y;
 
+    // D. DRAW ROW
+    
+    // Status Bar (Left side color strip)
+    doc.rect(PAGE_MARGIN, currentY, 4, boxHeight).fill(isCorrect ? COLORS.success : COLORS.error);
+    
+    // Question Number
+    doc.fillColor(COLORS.textLight).font(FONTS.bold).fontSize(12)
+       .text(qIndex, PAGE_MARGIN + 15, currentY + 5);
+
+    // Question Text
+    doc.fillColor(COLORS.textDark).font(FONTS.bold).fontSize(10)
+       .text(questionText, PAGE_MARGIN + 50, currentY + 5, { width: 380 });
+
+    // Answer Section
+    const answerY = currentY + qTextHeight + 10;
+    
     doc.font(FONTS.regular).fontSize(10).fillColor(COLORS.textMedium)
-       .text(`Selected Answer: `, 110, currentY + 32, { continued: true })
-       .font(FONTS.bold).text(r.selected);
+       .text("You selected: ", PAGE_MARGIN + 50, answerY, { continued: true })
+       .font(FONTS.bold).fillColor(isCorrect ? COLORS.success : COLORS.error)
+       .text(selectedText);
 
     // Status Badge (Right aligned)
-    drawBadge(
-      isCorrect ? "CORRECT" : "WRONG", 
-      470, 
-      currentY + 20, 
-      isCorrect ? COLORS.success : COLORS.error, 
-      isCorrect ? COLORS.successBg : COLORS.errorBg
-    );
+    const badgeColor = isCorrect ? COLORS.success : COLORS.error;
+    const badgeBg = isCorrect ? COLORS.successBg : COLORS.errorBg;
+    const badgeText = isCorrect ? "CORRECT" : "WRONG";
 
-    // Bottom Divider (Light)
-    doc.moveDown();
-    doc.y = currentY + cardHeight + 10;
-    doc.strokeColor(COLORS.bgLight).lineWidth(1).moveTo(50, doc.y).lineTo(545, doc.y).stroke();
-    doc.moveDown(1);
+    // Draw badge background
+    doc.roundedRect(480, currentY, 60, 20, 10).fill(badgeBg);
+    // Draw badge text
+    doc.fillColor(badgeColor).font(FONTS.bold).fontSize(8)
+       .text(badgeText, 480, currentY + 6, { width: 60, align: "center" });
+
+    // Move cursor for next item + spacing
+    doc.y = currentY + boxHeight + 15;
+    
+    // Divider
+    doc.strokeColor(COLORS.bgLight).lineWidth(1)
+       .moveTo(PAGE_MARGIN, doc.y - 7).lineTo(PAGE_WIDTH - PAGE_MARGIN, doc.y - 7).stroke();
   });
 
-  // FOOTER
+  // 4. FOOTER
   const range = doc.bufferedPageRange();
   for (let i = range.start; i < range.start + range.count; i++) {
     doc.switchToPage(i);
-    
-    // Bottom Border
-    doc.rect(0, doc.page.height - 20, doc.page.width, 20).fill(COLORS.bgLight);
-    
-    doc.fillColor(COLORS.textLight).fontSize(8).font(FONTS.regular);
-    
-    // Left Footer
-    doc.text("Generated by Aurora Quiz System", 50, doc.page.height - 15, { lineBreak: false });
-    
-    // Right Footer
-    doc.text(`Page ${i + 1} of ${range.count}`, 0, doc.page.height - 15, { align: "right", width: 545 });
+    doc.fillColor(COLORS.textLight).fontSize(8).font(FONTS.regular)
+       .text("Generated by Aurora Quiz System", PAGE_MARGIN, doc.page.height - 20)
+       .text(`Page ${i + 1} of ${range.count}`, 0, doc.page.height - 20, { align: "right", width: PAGE_WIDTH - PAGE_MARGIN });
   }
 
   doc.end();
